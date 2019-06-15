@@ -83,12 +83,12 @@ func readForzaData(conn *net.UDPConn, telemArray []Telemetry, csvFile string) {
 		}
 	}
 
-	// Dont print / log / anything if RPM is zero
+	// Dont print / log / do anything if RPM is zero
 	// This happens if the game is paused or you rewind
 	if f32map["CurrentEngineRpm"] == 0 {
 		return
 	}
-	// Bug with FH4 where it will sometimes keep sending the previous data when paused instead of zeroing 
+	// Bug with FH4 where it will send data when in certain menus 
 	
 	// Testers:
 	log.Println("RPM:", f32map["CurrentEngineRpm"], "Gear:", u8map["Gear"], "BHP:", (f32map["Power"] / 745.7), "Speed:", (f32map["Speed"] * 2.237))
@@ -131,16 +131,16 @@ func readForzaData(conn *net.UDPConn, telemArray []Telemetry, csvFile string) {
 func main() {
 	// Flags
 	csvFilePtr := flag.String("c", "", "Log data to given file in CSV format")
-	horizonPTR := flag.Bool("z", false, "Enables Forza Horizon 4 support")
+	horizonPTR := flag.Bool("z", false, "Enables Forza Horizon 4 support (Will default to Forza Motorsport if unset)")
 	flag.Parse()
 	csvFile := *csvFilePtr
 	horizonMode := *horizonPTR
 
 	if horizonMode {
 		formatFile = "FH4_packetformat.dat"
-		log.Println("Forza Horizon mode enabled")
+		log.Println("Forza Horizon mode selected")
 	} else {
-		log.Println("Forza Motorsport mode enabled")
+		log.Println("Forza Motorsport mode selected")
 	}
 
 	// Load packet format file
@@ -218,8 +218,8 @@ func main() {
 	// Prepare CSV file if needed
 	if isFlagPassed("c") == true {
 		log.Println("Logging data to", csvFile)
-		
 		csvHeader := ""
+
 		for _, T := range telemArray {  // Construct CSV header/column names
 			csvHeader += "," + T.name						
 		}
