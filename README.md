@@ -4,7 +4,14 @@ Forza data out tools
 # Use
 
 Port flag
-csv FLAG
+csv FLAG -c
+horizon flag -z
+
+## Example (Forza Horizon)
+`-z -c log.csv`  
+
+## Example (Forza Motorsport)
+`-c log.csv`  
 
 # Notes
 // Forza data out format: https://forums.forzamotorsport.net/turn10_postsm926839_Forza-Motorsport-7--Data-Out--feature-details.aspx#post_926839
