@@ -42,10 +42,10 @@ func readForzaData(conn *net.UDPConn, telemArray []Telemetry, csvFile string) {
 	// fmt.Println("UDP client:", addr)
 	// fmt.Println("Data from UDP client :  ", string(buffer[:n]))  // Debug: Dump entire received buffer
 
-	//Check length of received:
+	// TODO: Check length of received packet:
 	// 324 = FH4
 	// use this to switch formats? 
-	//fmt.Println(len(string(buffer[:n])))
+	// fmt.Println(len(string(buffer[:n])))
 
 	// Create some maps to store the latest values for each data type
 	s32map := make(map[string]uint32)
@@ -55,7 +55,7 @@ func readForzaData(conn *net.UDPConn, telemArray []Telemetry, csvFile string) {
 	u8map := make(map[string]uint8)
 	s8map := make(map[string]int8)
 
-	// Use Telemetry array to plot raw data against Forza's data out format
+	// Use Telemetry array to map raw data against Forza's data format
 	for _, T := range telemArray {
 		data := buffer[:n][T.startOffset:T.endOffset] // Process data in chunks based on byte offsets
 		switch T.dataType { // each data type needs to be converted / displayed differently
@@ -81,10 +81,10 @@ func readForzaData(conn *net.UDPConn, telemArray []Telemetry, csvFile string) {
 
 	// Dont print / log / do anything if RPM is zero
 	// This happens if the game is paused or you rewind
+	// Bug with FH4 where it will send data when in certain menus
 	if f32map["CurrentEngineRpm"] == 0 {
 		return
 	}
-	// Bug with FH4 where it will send data when in certain menus 
 	
 	// Testers:
 	log.Println("RPM:", f32map["CurrentEngineRpm"], "Gear:", u8map["Gear"], "BHP:", (f32map["Power"] / 745.7), "Speed:", (f32map["Speed"] * 2.237))
@@ -125,13 +125,14 @@ func readForzaData(conn *net.UDPConn, telemArray []Telemetry, csvFile string) {
 }
 
 func main() {
-	// Flags
+	// Parse flags
 	csvFilePtr := flag.String("c", "", "Log data to given file in CSV format")
 	horizonPTR := flag.Bool("z", false, "Enables Forza Horizon 4 support (Will default to Forza Motorsport if unset)")
 	flag.Parse()
 	csvFile := *csvFilePtr
 	horizonMode := *horizonPTR
 
+	// Switch to Horizon format if needed
 	var formatFile = "FM7_packetformat.dat" // Path to file containing Forzas data format
 	if horizonMode {
 		formatFile = "FH4_packetformat.dat"
@@ -140,13 +141,13 @@ func main() {
 		log.Println("Forza Motorsport mode selected")
 	}
 
-	// Load packet format file
+	// Load lines from packet format file
 	lines, err := readLines(formatFile)
     if err != nil {
         log.Fatalf("Error reading format file: %s", err)
 	}
 
-	// Process format file into array of structs containing telemetry format
+	// Process format file into array of Telemetry structs
 	startOffset := 0
 	endOffset := 0
 	dataLength := 0
@@ -154,17 +155,17 @@ func main() {
 
 	log.Printf("Processing %s...", formatFile)
 	for i, line := range lines {
-		dataClean := strings.Split(line, ";") // remove everything after ; from command list text file
+		dataClean := strings.Split(line, ";") // remove comments after ; from data format file
 		dataFormat := strings.Split(dataClean[0], " ") // array containing data type and name
 		dataType := dataFormat[0]
 		dataName := dataFormat[1]
 
 		switch dataType {
 		case "s32": // Signed 32bit int
-			dataLength = 4 
+			dataLength = 4 // Number of bytes
 			endOffset = endOffset + dataLength
 			startOffset = endOffset - dataLength
-			telemItem := Telemetry{i, dataName, dataType, startOffset, endOffset}
+			telemItem := Telemetry{i, dataName, dataType, startOffset, endOffset} // Create new Telemetry item / data point
 			telemArray = append(telemArray, telemItem)
 		case "u32": // Unsigned 32bit int
 			dataLength = 4 
@@ -213,13 +214,12 @@ func main() {
 	// Prepare CSV file if needed
 	if isFlagPassed("c") == true {
 		log.Println("Logging data to", csvFile)
+		
 		csvHeader := ""
-
 		for _, T := range telemArray {  // Construct CSV header/column names
 			csvHeader += "," + T.name						
 		}
 		csvHeader = csvHeader + "\n"
-		// log.Println(csvHeader[1:]) // Debug
 		err := ioutil.WriteFile(csvFile, []byte(csvHeader)[1:], 0644)
 		check(err)
 		} else {
