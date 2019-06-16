@@ -14,7 +14,7 @@ Forza Motorsport 7 select the "car dash" format.
 
 ### Command Options
 Specify a CSV file to log to: `-c log.csv`  
-Enable supprot for Forza Horizon: `-z`  
+Enable support for Forza Horizon: `-z`  
 
 #### Example (Forza Horizon)
 `go run main.go -z -c log.csv`  
