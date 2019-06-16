@@ -9,9 +9,7 @@ Forza data out tools
 From your game HUD options, enable the data out feature and set it to use the IP address of your computer. Port 9999.  
 Forza Motorsport 7 select the "car dash" format.
 
-### Options
-Command flags:  
-
+### Command Options
 Specify a CSV file to log to: `-c log.csv`  
 Enable Forza Horizon mode: `-z`  
 
