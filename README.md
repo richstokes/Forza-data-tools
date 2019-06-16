@@ -26,4 +26,4 @@ Enable support for Forza Horizon: `-z`
 ## Further reading
 - Forza data out format: https://forums.forzamotorsport.net/turn10_postsm926839_Forza-Motorsport-7--Data-Out--feature-details.aspx#post_926839
 
-- Forza Horizon 4 has some mystery data in the packet, waiting on info from the developers - https://forums.forzamotorsport.net/turn10_postsm1086012_Data-Output.aspx#post_1086012
+- Forza Horizon 4 has some mystery data in the packet, waiting on info from the developers: https://forums.forzamotorsport.net/turn10_postsm1086012_Data-Output.aspx#post_1086012
