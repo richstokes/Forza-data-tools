@@ -1,7 +1,6 @@
 package main
 
 import (
-	// "math/rand"
 	"bufio"
 	"encoding/binary"
 	"fmt"
@@ -23,7 +22,6 @@ import (
 const hostname = "0.0.0.0" // Address to listen on (0.0.0.0 = all interfaces)
 const port = "9999" // UDP Port number to listen on
 const service = hostname + ":" + port // Combined hostname+port
-var formatFile = "FM7_packetformat.dat" // Path to file containing Forzas data format
 
 type Telemetry struct {
 	position int
@@ -36,8 +34,6 @@ type Telemetry struct {
 // readForzaData processes recieved UDP packets
 func readForzaData(conn *net.UDPConn, telemArray []Telemetry, csvFile string) {
 	buffer := make([]byte, 1500)
-
-	
 
 	n, addr, err := conn.ReadFromUDP(buffer)
 	if err != nil {
@@ -136,6 +132,7 @@ func main() {
 	csvFile := *csvFilePtr
 	horizonMode := *horizonPTR
 
+	var formatFile = "FM7_packetformat.dat" // Path to file containing Forzas data format
 	if horizonMode {
 		formatFile = "FH4_packetformat.dat"
 		log.Println("Forza Horizon mode selected")
@@ -208,10 +205,8 @@ func main() {
 		default:
 			log.Fatalf("Error: Unknown data type in %s \n", formatFile)
 		}
-
-		// Debug format file processing:
+		//Debug format file processing:
 		//log.Printf("Processed line %d: %s (%s) \t\t Byte offset: %d:%d \n", i, dataName, dataType, startOffset, endOffset)
-		
     }
 	log.Printf("Proccessed %d Telemetry types OK!", len(telemArray))
 	
@@ -240,7 +235,7 @@ func main() {
 	listener, err := net.ListenUDP("udp", udpAddr)
 	check(err)
 
-	log.Printf("Server listening on %s, waiting for Forza connection...\n", service)
+	log.Printf("Server listening on %s, waiting for Forza data...\n", service)
 
 	defer listener.Close() // close after main ends - probably not really needed
 
@@ -309,7 +304,7 @@ func readLines(path string) ([]string, error) {
     return lines, scanner.Err()
 }
 
-// Replaced by sprint
+// Replaced by Sprintf
 // func FloatToString(input_num float32) string {
 // 	// to convert a float number to a string
 // 	to64 := float64(input_num)

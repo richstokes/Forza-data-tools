@@ -10,9 +10,9 @@ From your game HUD options, enable the data out feature and set it to use the IP
 Forza Motorsport 7 select the "car dash" format.
 
 ### Options
-Port flag
-csv FLAG -c
-horizon flag -z
+Command flags:  
+Specify a CSV file to log to: `-c log.csv`
+Enable Forza Horizon mode: `-z`
 
 #### Example (Forza Horizon)
 `go run main.go -z -c log.csv`  
