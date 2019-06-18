@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Forza Telemetry Data</title>
+</head>
+<body>
+    <div id="ForzaData"></div>
+    <script>
+        var t=setInterval(fetchData,100);
+
+        function fetchData(){
+            fetch('http://localhost:8080/forza')
+            .then(function (response) {
+                return response.json();
+            })
+            .then(function (data) {
+                updateData(data);
+            })
+            .catch(function (err) {
+                console.log('error: ' + err);
+            });
+        }
+
+        function updateData(data) {
+            document.getElementById('ForzaData').innerHTML = ('Speed: ' + (data[2].Speed * 2.237).toFixed(0) + ' MPH<BR>RPM: ' + data[2].CurrentEngineRpm.toFixed(0) + '<BR>Gear: ' + data[4].Gear);
+        }
+
+    </script>
+</body>
+</html>
