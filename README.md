@@ -1,28 +1,54 @@
 # Forza data tools
-Building some tools for playing with the data out feature from the Forza Motorsport / Forza Horizon games.
+Building some tools for playing with the UDP data out feature from the Forza Motorsport 7 / Forza Horizon 4 games. Built with [golang 1.12](https://golang.org/dl/).  
+
+
 
 
 ## Features
-- Telemetry data logging to csv file
+- Realtime telemetry output to terminal  
+- Telemetry data logging to csv file  
+- Serve Forza Telemetry data as JSON API
+- Display race statistics from race/drive (when logging to CSV)  
 
-(Feel free to open an issue if you have any suggestions/requests)
+
+
+(Feel free to open an issue if you have any suggestions/feature requests)
 &nbsp;
 
-## Usage
+## Setup
 From your game HUD options, enable the data out feature and set it to use the IP address of your computer. Port 9999.  
 Forza Motorsport 7 select the "car dash" format.
 
+&nbsp;
+
+## Build
+Compile the application with: `go build -o fdt *.go`  
+
+&nbsp;
+
+## Run
 ### Command Options
-Specify a CSV file to log to: `-c log.csv`  
-Enable support for Forza Horizon: `-z`  
+Specify a CSV file to log to: `-c log.csv` (File will be overwritten if it exists)    
+Enable support for Forza Horizon: `-z`    
+Enable JSON server `-j` (Will expose a server on http://localhost:8080/forza)  
+Disable realtime terminal output `-d`  
 
-#### Example (Forza Horizon)
-`go run main.go -z -c log.csv`  
+##### Example (Forza Horizon)
+`fdt -z -j -c log.csv`  
 
-#### Example (Forza Motorsport)
-`go run main.go -c log.csv`  
+##### Example (Forza Motorsport)
+`fdt -c -j log.csv`  
+
+
+### JSON Data
+If the `-j` flag is provided, JSON data Will be available at: http://localhost:8080/forza -- currently a bit of a hack, but it works!  Could be used to make a web dashboard interface or something similar. JSON Format is an array of objects containing the various data types.  
 
 &nbsp; 
+
+There is an example JavaScript dashboard in the `/dash` directory.  
+
+&nbsp; 
+
 ## Further reading
 - Forza data out format: https://forums.forzamotorsport.net/turn10_postsm926839_Forza-Motorsport-7--Data-Out--feature-details.aspx#post_926839
 
