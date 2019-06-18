@@ -7,7 +7,7 @@ Building some tools for playing with the UDP data out feature from the Forza Mot
 ## Features
 - Realtime telemetry output to terminal  
 - Telemetry data logging to csv file  
-- Serve Forza Telemetry data as JSON API
+- Serve Forza Telemetry data as JSON over HTTP
 - Display race statistics from race/drive (when logging to CSV)  
 
 
@@ -33,19 +33,22 @@ Enable support for Forza Horizon: `-z`
 Enable JSON server `-j` (Will expose a server on http://localhost:8080/forza)  
 Disable realtime terminal output `-d`  
 
+&nbsp;
+
 ##### Example (Forza Horizon)
 `fdt -z -j -c log.csv`  
 
 ##### Example (Forza Motorsport)
 `fdt -c -j log.csv`  
 
+&nbsp;
 
 ### JSON Data
-If the `-j` flag is provided, JSON data Will be available at: http://localhost:8080/forza -- currently a bit of a hack, but it works!  Could be used to make a web dashboard interface or something similar. JSON Format is an array of objects containing the various data types.  
+If the `-j` flag is provided, JSON data will be available at: http://localhost:8080/forza -- currently a bit of a hack, but it works!  Could be used to make a web dashboard interface or something similar. JSON Format is an array of objects containing the various Forza data types.  
 
 &nbsp; 
 
-There is an example JavaScript dashboard in the `/dash` directory.  
+There is a basic example JavaScript dashboard in the `/dash` directory.  
 
 &nbsp; 
 
