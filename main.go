@@ -17,11 +17,15 @@ import (
 	"io/ioutil"
 	// "encoding/csv"	
 	// "sort"
+	"encoding/json"
 )
 
 const hostname = "0.0.0.0" // Address to listen on (0.0.0.0 = all interfaces)
 const port = "9999" // UDP Port number to listen on
 const service = hostname + ":" + port // Combined hostname+port
+
+var jsonData string
+
 
 type Telemetry struct {
 	position int
@@ -81,25 +85,27 @@ func readForzaData(conn *net.UDPConn, telemArray []Telemetry, csvFile string) {
 
 	// Dont print / log / do anything if RPM is zero
 	// This happens if the game is paused or you rewind
-	// Bug with FH4 where it will send data when in certain menus
+	// Bug with FH4 where it will continue to send data when in certain menus
 	if f32map["CurrentEngineRpm"] == 0 {
 		return
 	}
 	
-	// Testers:
-	log.Println("RPM:", f32map["CurrentEngineRpm"], "Gear:", u8map["Gear"], "BHP:", (f32map["Power"] / 745.7), "Speed:", (f32map["Speed"] * 2.237))
-	// fmt.Println("Lap:", (u16map["LapNumber"] +1 ))
-	// fmt.Println("Slip%:", f32map["TireSlipRatioRearRight"])
-	// fmt.Println("BHP:", (f32map["Power"] / 745.7)) // Convert to BHP
-	// fmt.Println("Torque:", (f32map["Torque"] * 0.74)) // Conver to LB-FT
+	// Print received data to terminal:
+	if isFlagPassed("d") == false {
+		log.Printf(" RPM: %.0f \t Gear: %d \t BHP: %.0f \t Speed: %.0f \t Slip: %.0f", f32map["CurrentEngineRpm"], u8map["Gear"], (f32map["Power"] / 745.7), (f32map["Speed"] * 2.237), (f32map["TireCombinedSlipRearLeft"] + f32map["TireCombinedSlipRearRight"]))
+		// log.Println("RPM:", f32map["CurrentEngineRpm"], "Gear:", u8map["Gear"], "BHP:", (f32map["Power"] / 745.7), "Speed:", (f32map["Speed"] * 2.237))
+		// fmt.Println("BHP:", (f32map["Power"] / 745.7)) // Convert to BHP
+		// fmt.Println("Torque:", (f32map["Torque"] * 0.74)) // Conver to LB-FT
+	}
 
-	// Write data to CSV file if applicable:
+	// Write data to CSV file if enabled:
 	if isFlagPassed("c") == true {
 		file, err := os.OpenFile(csvFile, os.O_WRONLY|os.O_APPEND, 0644)
 		check(err)
 		defer file.Close()
 
 		csvLine := ""
+
 		for _, T := range telemArray {  // Construct CSV line
 			switch T.dataType {
 			case "s32":
@@ -119,18 +125,64 @@ func readForzaData(conn *net.UDPConn, telemArray []Telemetry, csvFile string) {
 			}
 		}
 		csvLine += "\n"
+
 		// log.Println(csvLine[1:])
 		fmt.Fprintf(file, csvLine[1:])  // write new line to file
-	}
+	} // end of if CSV enabled
+
+	
+	// Send data to JSON server if enabled:
+	if isFlagPassed("j") == true {
+		var jsonArray [][]byte 
+
+		json1, _ := json.Marshal(s32map)
+		jsonString := string(json1)
+		jsonArray = append(jsonArray, json1)
+
+		json2, _ := json.Marshal(u32map)
+		jsonString2 := string(json2)
+		jsonArray = append(jsonArray, json2)
+
+		json3, _ := json.Marshal(f32map)
+		jsonString3 := string(json3)
+		jsonArray = append(jsonArray, json3)
+
+		json4, _ := json.Marshal(u16map)
+		jsonString4 := string(json4)
+		jsonArray = append(jsonArray, json4)
+
+		json5, _ := json.Marshal(u8map)
+		jsonString5 := string(json5)
+		jsonArray = append(jsonArray, json5)
+
+		json6, _ := json.Marshal(s8map)
+		jsonString6 := string(json6)
+		jsonArray = append(jsonArray, json6)
+
+		// Terrifying JSON hack
+		// Probably a much better way to do this, one to look into
+		jsonData = fmt.Sprintf("[%s, %s, %s, %s, %s, %s]", jsonString, jsonString2, jsonString3, jsonString4, jsonString5, jsonString6)
+		// log.Println(jsonData)
+	} // end of if jsonEnabled
 }
 
 func main() {
 	// Parse flags
 	csvFilePtr := flag.String("c", "", "Log data to given file in CSV format")
 	horizonPTR := flag.Bool("z", false, "Enables Forza Horizon 4 support (Will default to Forza Motorsport if unset)")
+	jsonPTR := flag.Bool("j", false, "Enables JSON server on port 8080")
+	noTermPTR := flag.Bool("d", false, "Disables realtime terminal output if set")
 	flag.Parse()
 	csvFile := *csvFilePtr
 	horizonMode := *horizonPTR
+	jsonEnabled := *jsonPTR
+	noTerm := *noTermPTR
+
+	SetupCloseHandler(csvFile) // handle CTRL+C
+
+	if noTerm {
+		log.Println("Terminal data output disabled")
+	}
 
 	// Switch to Horizon format if needed
 	var formatFile = "FM7_packetformat.dat" // Path to file containing Forzas data format
@@ -211,7 +263,7 @@ func main() {
     }
 	log.Printf("Proccessed %d Telemetry types OK!", len(telemArray))
 	
-	// Prepare CSV file if needed
+	// Prepare CSV file if requested
 	if isFlagPassed("c") == true {
 		log.Println("Logging data to", csvFile)
 		
@@ -226,6 +278,12 @@ func main() {
 		log.Println("CSV Logging disabled")
 	}
 
+	// Start JSON server if requested
+	if jsonEnabled {
+		go serveJSON()
+	}
+	
+
 	// Setup UDP listener
 	udpAddr, err := net.ResolveUDPAddr("udp4", service)
 	if err != nil {
@@ -234,10 +292,9 @@ func main() {
 
 	listener, err := net.ListenUDP("udp", udpAddr)
 	check(err)
-
-	log.Printf("Server listening on %s, waiting for Forza data...\n", service)
-
 	defer listener.Close() // close after main ends - probably not really needed
+	
+	log.Printf("Forza data out server listening on %s, waiting for Forza data...\n", service)
 
 	for { // main loop
 		readForzaData(listener, telemArray, csvFile) // Also pass telemArray to UDP function - might be a better way instea do of passing each time?
@@ -247,18 +304,20 @@ func main() {
 func init() {
 	log.SetFlags(log.Lmicroseconds)
 	log.Println("Starting Forza Data Tools")
-	SetupCloseHandler()
 }
 
 // Helper functions
-func SetupCloseHandler() {
+
+// Run on close (CTRL+C)
+func SetupCloseHandler(csvFile string) {
     c := make(chan os.Signal, 2)
     signal.Notify(c, os.Interrupt, syscall.SIGTERM)
     go func() {
 		<-c
-		// Handle CTL+C - TODO: get average stats if logging
+		if isFlagPassed("c") == true { // Get stats if csv logging enabled
+			calcstats(csvFile)
+		}
 		fmt.Println("")
-		log.Println("Bye.  ō͡≡o˞̶")
         os.Exit(0)
     }()
 }
