@@ -1,3 +1,4 @@
 testing/*
 *.csv
 fdt
+.DS_Store
