@@ -285,7 +285,6 @@ func main() {
 		go serveJSON()
 	}
 	
-
 	// Setup UDP listener
 	udpAddr, err := net.ResolveUDPAddr("udp4", service)
 	if err != nil {
