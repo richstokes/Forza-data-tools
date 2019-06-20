@@ -46,9 +46,7 @@ Disable realtime terminal output `-d`
 ### JSON Data
 If the `-j` flag is provided, JSON data will be available at: http://localhost:8080/forza -- currently a bit of a hack, but it works!  Could be used to make a web dashboard interface or something similar. JSON Format is an array of objects containing the various Forza data types.  
 
-&nbsp; 
-
-There is a basic example JavaScript dashboard in the `/dash` directory.  
+There is a basic example JavaScript dashboard (with rev limiter function) in the `/dash` directory.  
 
 &nbsp; 
 

@@ -5,29 +5,176 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <title>Forza Telemetry Data</title>
+    <!-- Plotly.js -->
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
 </head>
 <body>
-    <div id="ForzaData"></div>
-    <script>
-        var t=setInterval(fetchData,50);
+        <div id="rpmDiv" style="width: 600px; height: 400px;"><!-- Plotly chart will be drawn inside this DIV --></div>
+        
+        <div id="speedDiv" style="width: 600px; height: 400px;"><!-- Plotly chart will be drawn inside this DIV --></div>
 
-        function fetchData(){
-            fetch('http://localhost:8080/forza')
-            .then(function (response) {
-                return response.json();
-            })
-            .then(function (data) {
-                updateData(data);
-            })
-            .catch(function (err) {
-                console.log('error: ' + err);
-            });
-        }
+        <div id="gearDiv" style="width: 600px; height: 400px;"><!-- Plotly chart will be drawn inside this DIV --></div>
+        
+        <script>
+            var t=setInterval(getData,100);
+            
+            var rpm = 0;
+            var maxrpm = 12000; // Will be set to the actual max RPM of the car
+            var speed = 0;
+            var gear = 0;
+            
+            getData();
+            
+            function getData(){
+                fetch('http://localhost:8080/forza') // replace with url when ready
+                .then(function (response) {
+                    return response.json();
+                })
+                .then(function (data) {
+                    rpm = data[2].CurrentEngineRpm.toFixed(0);
+                    maxrpm = data[2].EngineMaxRpm.toFixed(0);
+                    speed = (data[2].Speed * 2.237).toFixed(0);
+                    gear = data[4].Gear;
+                    drawRPMgraph(); // Call the draw graph functions after getting data
+                    drawSpeedGraph();
+                    drawGears();
+                })
+                .catch(function (err) {
+                    console.log('error: ' + err);
+                });
+            }
+            
+            
+            function drawRPMgraph(){
+                // console.log("Graph value of 'rpm' " + rpm);
+                rpmOkCol = 'rgba(47, 122, 208, 1)';
+                limiterCol = 'rgba(208, 47, 47, 1)';
+                rpmCol = rpmOkCol; // color to use when RPM is a normal value
+                
+                if (rpm >= (maxrpm * 0.90)) {
+                    rpmCol = limiterCol; // set RPM gauge to red when near limiter
+                }
+                
+                var gdata = [{
+                    type: 'bar',
+                    x: [rpm],
+                    y: ['RPM'],
+                    orientation: 'h',
+                    
+                    marker: {
+                        color: rpmCol,
+                        width: 1
+                    }
+                }];
+                
+                var layout = {
+                    title: "<b>RPM's</b>", 
+                    xaxis: {
+                        range: [0, maxrpm]
+                    }
+                };
+                
+                Plotly.newPlot('rpmDiv', gdata, layout);
+            }
+            
+            
+            function drawSpeedGraph(){
+                // console.log("Graph value of 'speed' " + speed);
+                // Enter a speed between 0 and 180
+                var level = speed;
+                
+                // Trig to calc meter point
+                var degrees = 180 - level,
+                radius = .5;
+                var radians = degrees * Math.PI / 180;
+                var x = radius * Math.cos(radians);
+                var y = radius * Math.sin(radians);
+                
+                // Path: may have to change to create a better triangle
+                var mainPath = 'M -.0 -0.025 L .0 0.025 L ',
+                pathX = String(x),
+                space = ' ',
+                pathY = String(y),
+                pathEnd = ' Z';
+                var path = mainPath.concat(pathX,space,pathY,pathEnd);
+                
+                var data = [{ type: 'scatter',
+                x: [0], y:[0],
+                marker: {size: 28, color:'850000'},
+                showlegend: false,
+                name: 'speed',
+                text: level,
+                hoverinfo: 'text+name'},
+                { values: [50/6, 50/6, 50/6, 50/6, 50/6, 50/6, 50],
+                    rotation: 90,
+                    text: ['TOO FAST!', 'Pretty Fast', 'Fast', 'Average',
+                    'Slow', 'Super Slow', ''],
+                    textinfo: 'text',
+                    textposition:'inside',
+                    marker: {colors:['rgba(14, 127, 0, .5)', 'rgba(110, 154, 22, .5)',
+                    'rgba(170, 202, 42, .5)', 'rgba(202, 209, 95, .5)',
+                    'rgba(210, 206, 145, .5)', 'rgba(232, 226, 202, .5)',
+                    'rgba(255, 255, 255, 0)']},
+                    labels: ['151-180', '121-150', '91-120', '61-90', '31-60', '0-30', ''],
+                    hoverinfo: 'label',
+                    hole: .5,
+                    type: 'pie',
+                    showlegend: false
+                }];
+                
+                var layout = {
+                    shapes:[{
+                        type: 'path',
+                        path: path,
+                        fillcolor: '850000',
+                        line: {
+                            color: '850000'
+                        }
+                    }],
+                    title: '<b>Speed 0-200 MPH</b>',
+                    height: 600,
+                    width: 600,
+                    xaxis: {zeroline:false, showticklabels:false,
+                        showgrid: false, range: [-1, 1]},
+                        yaxis: {zeroline:false, showticklabels:false,
+                            showgrid: false, range: [-1, 1]}
+                        };
+                        
+                        Plotly.newPlot('speedDiv', data, layout);
+                    }
+                    
 
-        function updateData(data) {
-            document.getElementById('ForzaData').innerHTML = ('Speed: ' + (data[2].Speed * 2.237).toFixed(0) + ' MPH<BR>RPM: ' + data[2].CurrentEngineRpm.toFixed(0) + '<BR>Gear: ' + data[4].Gear);
-        }
+            function drawGears(){
+                rpmOkCol = 'rgba(47, 122, 208, 1)';
+                limiterCol = 'rgba(208, 47, 47, 1)';
+                rpmCol = rpmOkCol; // color to use when RPM is a normal value
+                
+                if (rpm >= (maxrpm * 0.90)) {
+                    rpmCol = limiterCol; // set RPM gauge to red when near limiter
+                }
+                
+                var gdata = [{
+                    type: 'bar',
+                    x: [gear],
+                    y: ['Gear'],
+                    orientation: 'h',
+                    
+                    marker: {
+                        color: rpmCol,
+                        width: 1
+                    }
+                }];
+                
+                var layout = {
+                    title: "<b>Current Gear</b>", 
+                    xaxis: {
+                        range: [0, 8]
+                    }
+                };
+                
+                Plotly.newPlot('gearDiv', gdata, layout);
+            }
 
-    </script>
-</body>
-</html>
+            </script>   
+            </body>
+            </html>
