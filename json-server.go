@@ -25,7 +25,7 @@ func responder(w http.ResponseWriter, r *http.Request) {
 func serveJSON() {
         http.HandleFunc("/forza", responder)
 
-        log.Printf("JSON Telemetry API server started on port %s..", jsonServerPort[1:])
+        log.Printf("JSON Telemetry Server started at http://localhost%s", jsonServerPort)
         log.Fatal(http.ListenAndServe(jsonServerPort, nil))
 }
 
