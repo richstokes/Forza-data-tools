@@ -135,34 +135,36 @@ func readForzaData(conn *net.UDPConn, telemArray []Telemetry, csvFile string) {
 	if isFlagPassed("j") == true {
 		var jsonArray [][]byte 
 
-		json1, _ := json.Marshal(s32map)
-		jsonString := string(json1)
-		jsonArray = append(jsonArray, json1)
+		s32json, _ := json.Marshal(s32map)
+		jsonArray = append(jsonArray, s32json)
 
-		json2, _ := json.Marshal(u32map)
-		jsonString2 := string(json2)
-		jsonArray = append(jsonArray, json2)
+		u32json, _ := json.Marshal(u32map)
+		jsonArray = append(jsonArray, u32json)
 
-		json3, _ := json.Marshal(f32map)
-		jsonString3 := string(json3)
-		jsonArray = append(jsonArray, json3)
+		f32json, _ := json.Marshal(f32map)
+		jsonArray = append(jsonArray, f32json)
 
-		json4, _ := json.Marshal(u16map)
-		jsonString4 := string(json4)
-		jsonArray = append(jsonArray, json4)
+		u16json, _ := json.Marshal(u16map)
+		jsonArray = append(jsonArray, u16json)
 
-		json5, _ := json.Marshal(u8map)
-		jsonString5 := string(json5)
-		jsonArray = append(jsonArray, json5)
+		u8json, _ := json.Marshal(u8map)
+		jsonArray = append(jsonArray, u8json)
 
-		json6, _ := json.Marshal(s8map)
-		jsonString6 := string(json6)
-		jsonArray = append(jsonArray, json6)
+		s8json, _ := json.Marshal(s8map)
+		jsonArray = append(jsonArray, s8json)
 
-		// Terrifying JSON hack
-		// Probably a much better way to do this, one to look into
-		jsonData = fmt.Sprintf("[%s, %s, %s, %s, %s, %s]", jsonString, jsonString2, jsonString3, jsonString4, jsonString5, jsonString6)
-		// log.Println(jsonData)
+		var jd []string
+		for i, j := range jsonArray { // concatenate json objects
+			if i == 0 {
+				jd = append(jd, string(j))
+			} else {
+				jd = append(jd, ", " + string(j))
+			}
+			
+		}
+
+		jsonData = fmt.Sprintf("%s", jd)
+
 	} // end of if jsonEnabled
 }
 
@@ -362,10 +364,3 @@ func readLines(path string) ([]string, error) {
     }
     return lines, scanner.Err()
 }
-
-// Replaced by Sprintf
-// func FloatToString(input_num float32) string {
-// 	// to convert a float number to a string
-// 	to64 := float64(input_num)
-//     return strconv.FormatFloat(to64, 'f', 4, 32)
-// }
