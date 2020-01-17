@@ -1,5 +1,5 @@
 # Forza data tools
-Building some tools for playing with the UDP data out feature from the Forza Motorsport 7 / Forza Horizon 4 games. Built with [golang 1.12](https://golang.org/dl/).  
+Building some tools for playing with the UDP data out feature from the Forza Motorsport 7 / Forza Horizon 4 games. Built with [golang](https://golang.org/dl/).  
 
 
 
@@ -22,7 +22,7 @@ Forza Motorsport 7 select the "car dash" format.
 &nbsp;
 
 ## Build
-Compile the application with: `go build -o fdt *.go`  
+Compile the application with: `go build -o fdt`  
 
 &nbsp;
 

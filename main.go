@@ -3,36 +3,36 @@ package main
 import (
 	"bufio"
 	"encoding/binary"
+	"flag"
 	"fmt"
-	"net"
 	"log"
 	"math"
-	"flag"
+	"net"
 	// "time"
 	// "strconv"
+	"io/ioutil"
 	"os"
 	"os/signal"
-	"syscall"
 	"strings"
-	"io/ioutil"
-	// "encoding/csv"	
+	"syscall"
+	// "encoding/csv"
 	// "sort"
 	"encoding/json"
 )
 
-const hostname = "0.0.0.0" // Address to listen on (0.0.0.0 = all interfaces)
-const port = "9999" // UDP Port number to listen on
+const hostname = "0.0.0.0"            // Address to listen on (0.0.0.0 = all interfaces)
+const port = "9999"                   // UDP Port number to listen on
 const service = hostname + ":" + port // Combined hostname+port
 
-var jsonData string
+var jsonData string // Stores the JSON data to be sent out via the web server if enabled
 
-
+// Telemetry struct represents a piece of telemetry as defined in the Forza data format (see the .dat files)
 type Telemetry struct {
-	position int
-	name string
-	dataType string
+	position    int
+	name        string
+	dataType    string
 	startOffset int
-	endOffset int
+	endOffset   int
 }
 
 // readForzaData processes recieved UDP packets
@@ -48,7 +48,7 @@ func readForzaData(conn *net.UDPConn, telemArray []Telemetry, csvFile string) {
 
 	// TODO: Check length of received packet:
 	// 324 = FH4
-	// use this to switch formats? 
+	// use this to switch formats?
 	// fmt.Println(len(string(buffer[:n])))
 
 	// Create some maps to store the latest values for each data type
@@ -62,9 +62,9 @@ func readForzaData(conn *net.UDPConn, telemArray []Telemetry, csvFile string) {
 	// Use Telemetry array to map raw data against Forza's data format
 	for _, T := range telemArray {
 		data := buffer[:n][T.startOffset:T.endOffset] // Process data in chunks based on byte offsets
-		switch T.dataType { // each data type needs to be converted / displayed differently
+		switch T.dataType {                           // each data type needs to be converted / displayed differently
 		case "s32":
-			// fmt.Println("Name:", T.name, "Type:", T.dataType, "value:", binary.LittleEndian.Uint32(data)) 
+			// fmt.Println("Name:", T.name, "Type:", T.dataType, "value:", binary.LittleEndian.Uint32(data))
 			s32map[T.name] = binary.LittleEndian.Uint32(data)
 		case "u32":
 			// fmt.Println("Name:", T.name, "Type:", T.dataType, "value:", binary.LittleEndian.Uint32(data))
@@ -85,14 +85,21 @@ func readForzaData(conn *net.UDPConn, telemArray []Telemetry, csvFile string) {
 
 	// Dont print / log / do anything if RPM is zero
 	// This happens if the game is paused or you rewind
-	// Bug with FH4 where it will continue to send data when in certain menus
+	// There is a bug with FH4 where it will continue to send data when in certain menus
 	if f32map["CurrentEngineRpm"] == 0 {
 		return
 	}
-	
+
 	// Print received data to terminal:
 	if isFlagPassed("d") == false {
-		log.Printf(" RPM: %.0f \t Gear: %d \t BHP: %.0f \t Speed: %.0f \t Slip: %.0f", f32map["CurrentEngineRpm"], u8map["Gear"], (f32map["Power"] / 745.7), (f32map["Speed"] * 2.237), (f32map["TireCombinedSlipRearLeft"] + f32map["TireCombinedSlipRearRight"]))
+		log.Printf("RPM: %.0f \t Gear: %d \t BHP: %.0f \t Speed: %.0f \t Total slip: %.0f", f32map["CurrentEngineRpm"], u8map["Gear"], (f32map["Power"] / 745.7), (f32map["Speed"] * 2.237), (f32map["TireCombinedSlipRearLeft"] + f32map["TireCombinedSlipRearRight"]))
+		// Testing traction control sensor:
+		log.Printf("TireSlipRatioRearLeft: %.0f TireSlipRatioRearRight %.0f", f32map["TireCombinedSlipRearLeft"], f32map["TireCombinedSlipRearRight"])
+
+		if (f32map["TireCombinedSlipRearLeft"] + f32map["TireCombinedSlipRearRight"] > 30) { // Basic traction control detection testing where we allow slip up to a certain amount
+			log.Printf("Traction lost!")
+		}
+		// More tests:
 		// log.Println("RPM:", f32map["CurrentEngineRpm"], "Gear:", u8map["Gear"], "BHP:", (f32map["Power"] / 745.7), "Speed:", (f32map["Speed"] * 2.237))
 		// fmt.Println("BHP:", (f32map["Power"] / 745.7)) // Convert to BHP
 		// fmt.Println("Torque:", (f32map["Torque"] * 0.74)) // Conver to LB-FT
@@ -106,7 +113,7 @@ func readForzaData(conn *net.UDPConn, telemArray []Telemetry, csvFile string) {
 
 		csvLine := ""
 
-		for _, T := range telemArray {  // Construct CSV line
+		for _, T := range telemArray { // Construct CSV line
 			switch T.dataType {
 			case "s32":
 				csvLine += "," + fmt.Sprint(s32map[T.name])
@@ -127,13 +134,12 @@ func readForzaData(conn *net.UDPConn, telemArray []Telemetry, csvFile string) {
 		csvLine += "\n"
 
 		// log.Println(csvLine[1:])
-		fmt.Fprintf(file, csvLine[1:])  // write new line to file
+		fmt.Fprintf(file, csvLine[1:]) // write new line to file
 	} // end of if CSV enabled
 
-	
 	// Send data to JSON server if enabled:
 	if isFlagPassed("j") == true {
-		var jsonArray [][]byte 
+		var jsonArray [][]byte
 
 		s32json, _ := json.Marshal(s32map)
 		jsonArray = append(jsonArray, s32json)
@@ -158,9 +164,9 @@ func readForzaData(conn *net.UDPConn, telemArray []Telemetry, csvFile string) {
 			if i == 0 {
 				jd = append(jd, string(j))
 			} else {
-				jd = append(jd, ", " + string(j))
+				jd = append(jd, ", "+string(j))
 			}
-			
+
 		}
 
 		jsonData = fmt.Sprintf("%s", jd)
@@ -172,7 +178,7 @@ func main() {
 	// Parse flags
 	csvFilePtr := flag.String("c", "", "Log data to given file in CSV format")
 	horizonPTR := flag.Bool("z", false, "Enables Forza Horizon 4 support (Will default to Forza Motorsport if unset)")
-	jsonPTR := flag.Bool("j", false, "Enables JSON server on port 8080")
+	jsonPTR := flag.Bool("j", false, "Enables JSON HTTP server on port 8080")
 	noTermPTR := flag.Bool("d", false, "Disables realtime terminal output if set")
 	flag.Parse()
 	csvFile := *csvFilePtr
@@ -197,8 +203,8 @@ func main() {
 
 	// Load lines from packet format file
 	lines, err := readLines(formatFile)
-    if err != nil {
-        log.Fatalf("Error reading format file: %s", err)
+	if err != nil {
+		log.Fatalf("Error reading format file: %s", err)
 	}
 
 	// Process format file into array of Telemetry structs
@@ -209,7 +215,7 @@ func main() {
 
 	log.Printf("Processing %s...", formatFile)
 	for i, line := range lines {
-		dataClean := strings.Split(line, ";") // remove comments after ; from data format file
+		dataClean := strings.Split(line, ";")          // remove comments after ; from data format file
 		dataFormat := strings.Split(dataClean[0], " ") // array containing data type and name
 		dataType := dataFormat[0]
 		dataName := dataFormat[1]
@@ -220,39 +226,39 @@ func main() {
 			endOffset = endOffset + dataLength
 			startOffset = endOffset - dataLength
 			telemItem := Telemetry{i, dataName, dataType, startOffset, endOffset} // Create new Telemetry item / data point
-			telemArray = append(telemArray, telemItem)
+			telemArray = append(telemArray, telemItem) // Add Telemetry item to main telemetry array
 		case "u32": // Unsigned 32bit int
-			dataLength = 4 
+			dataLength = 4
 			endOffset = endOffset + dataLength
 			startOffset = endOffset - dataLength
 			telemItem := Telemetry{i, dataName, dataType, startOffset, endOffset}
 			telemArray = append(telemArray, telemItem)
 		case "f32": // Floating point 32bit
-			dataLength = 4 
+			dataLength = 4
 			endOffset = endOffset + dataLength
 			startOffset = endOffset - dataLength
 			telemItem := Telemetry{i, dataName, dataType, startOffset, endOffset}
 			telemArray = append(telemArray, telemItem)
 		case "u16": // Unsigned 16bit int
-			dataLength = 2 
+			dataLength = 2
 			endOffset = endOffset + dataLength
 			startOffset = endOffset - dataLength
 			telemItem := Telemetry{i, dataName, dataType, startOffset, endOffset}
 			telemArray = append(telemArray, telemItem)
 		case "u8": // Unsigned 8bit int
-			dataLength = 1 
+			dataLength = 1
 			endOffset = endOffset + dataLength
 			startOffset = endOffset - dataLength
 			telemItem := Telemetry{i, dataName, dataType, startOffset, endOffset}
 			telemArray = append(telemArray, telemItem)
 		case "s8": // Signed 8bit int
-			dataLength = 1 
+			dataLength = 1
 			endOffset = endOffset + dataLength
 			startOffset = endOffset - dataLength
 			telemItem := Telemetry{i, dataName, dataType, startOffset, endOffset}
 			telemArray = append(telemArray, telemItem)
-		case "hzn": // Forza Horizon 4 unknown values
-			dataLength = 12 
+		case "hzn": // Forza Horizon 4 unknown values (12 bytes of.. something)
+			dataLength = 12
 			endOffset = endOffset + dataLength
 			startOffset = endOffset - dataLength
 			telemItem := Telemetry{i, dataName, dataType, startOffset, endOffset}
@@ -262,21 +268,21 @@ func main() {
 		}
 		//Debug format file processing:
 		//log.Printf("Processed line %d: %s (%s) \t\t Byte offset: %d:%d \n", i, dataName, dataType, startOffset, endOffset)
-    }
+	}
 	log.Printf("Proccessed %d Telemetry types OK!", len(telemArray))
-	
+
 	// Prepare CSV file if requested
 	if isFlagPassed("c") == true {
 		log.Println("Logging data to", csvFile)
-		
+
 		csvHeader := ""
-		for _, T := range telemArray {  // Construct CSV header/column names
-			csvHeader += "," + T.name						
+		for _, T := range telemArray { // Construct CSV header/column names
+			csvHeader += "," + T.name
 		}
 		csvHeader = csvHeader + "\n"
 		err := ioutil.WriteFile(csvFile, []byte(csvHeader)[1:], 0644)
 		check(err)
-		} else {
+	} else {
 		log.Println("CSV Logging disabled")
 	}
 
@@ -284,17 +290,17 @@ func main() {
 	if jsonEnabled {
 		go serveJSON()
 	}
-	
+
 	// Setup UDP listener
 	udpAddr, err := net.ResolveUDPAddr("udp4", service)
 	if err != nil {
-			log.Fatal(err)
+		log.Fatal(err)
 	}
 
 	listener, err := net.ListenUDP("udp", udpAddr)
 	check(err)
 	defer listener.Close() // close after main ends - probably not really needed
-	
+
 	log.Printf("Forza data out server listening on %s, waiting for Forza data...\n", service)
 
 	for { // main loop
@@ -304,62 +310,62 @@ func main() {
 
 func init() {
 	log.SetFlags(log.Lmicroseconds)
-	log.Println("Starting Forza Data Tools")
+	log.Println("Started Forza Data Tools")
 }
 
 // Helper functions
 
-// Run on close (CTRL+C)
+// SetupCloseHandler performs some clean up on exit (CTRL+C)
 func SetupCloseHandler(csvFile string) {
-    c := make(chan os.Signal, 2)
-    signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-    go func() {
+	c := make(chan os.Signal, 2)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	go func() {
 		<-c
 		if isFlagPassed("c") == true { // Get stats if csv logging enabled
 			calcstats(csvFile)
 		}
 		fmt.Println("")
-        os.Exit(0)
-    }()
+		os.Exit(0)
+	}()
 }
 
 // Quick error check helper
 func check(e error) {
-    if e != nil {
-        log.Fatalln(e)
-    }
+	if e != nil {
+		log.Fatalln(e)
+	}
 }
 
 // Check if flag was passed
 func isFlagPassed(name string) bool {
-    found := false
-    flag.Visit(func(f *flag.Flag) {
-        if f.Name == name {
-            found = true
-        }
-    })
-    return found
+	found := false
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == name {
+			found = true
+		}
+	})
+	return found
 }
 
 // Float32frombytes converts bytes into a float32
 func Float32frombytes(bytes []byte) float32 {
-    bits := binary.LittleEndian.Uint32(bytes)
-    float := math.Float32frombits(bits)
-    return float
+	bits := binary.LittleEndian.Uint32(bytes)
+	float := math.Float32frombits(bits)
+	return float
 }
 
 // readLines reads a whole file into memory and returns a slice of its lines
 func readLines(path string) ([]string, error) {
-    file, err := os.Open(path)
-    if err != nil {
-        return nil, err
-    }
-    defer file.Close()
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
 
-    var lines []string
-    scanner := bufio.NewScanner(file)
-    for scanner.Scan() {
-        lines = append(lines, scanner.Text())
-    }
-    return lines, scanner.Err()
+	var lines []string
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+	return lines, scanner.Err()
 }
