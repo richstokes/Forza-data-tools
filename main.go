@@ -91,12 +91,12 @@ func readForzaData(conn *net.UDPConn, telemArray []Telemetry, csvFile string) {
 	}
 
 	// Print received data to terminal:
-	if isFlagPassed("d") == false {
+	if isFlagPassed("q") == false {
 		log.Printf("RPM: %.0f \t Gear: %d \t BHP: %.0f \t Speed: %.0f \t Total slip: %.0f", f32map["CurrentEngineRpm"], u8map["Gear"], (f32map["Power"] / 745.7), (f32map["Speed"] * 2.237), (f32map["TireCombinedSlipRearLeft"] + f32map["TireCombinedSlipRearRight"]))
 		// Testing traction control sensor:
 		log.Printf("TireSlipRatioRearLeft: %.0f TireSlipRatioRearRight %.0f", f32map["TireCombinedSlipRearLeft"], f32map["TireCombinedSlipRearRight"])
 
-		if (f32map["TireCombinedSlipRearLeft"] + f32map["TireCombinedSlipRearRight"] > 30) { // Basic traction control detection testing where we allow slip up to a certain amount
+		if f32map["TireCombinedSlipRearLeft"]+f32map["TireCombinedSlipRearRight"] > 30 { // Basic traction control detection testing where we allow slip up to a certain amount
 			log.Printf("Traction lost!")
 		}
 		// More tests:
@@ -179,7 +179,7 @@ func main() {
 	csvFilePtr := flag.String("c", "", "Log data to given file in CSV format")
 	horizonPTR := flag.Bool("z", false, "Enables Forza Horizon 4 support (Will default to Forza Motorsport if unset)")
 	jsonPTR := flag.Bool("j", false, "Enables JSON HTTP server on port 8080")
-	noTermPTR := flag.Bool("d", false, "Disables realtime terminal output if set")
+	noTermPTR := flag.Bool("q", false, "Disables realtime terminal output if set")
 	flag.Parse()
 	csvFile := *csvFilePtr
 	horizonMode := *horizonPTR
@@ -189,7 +189,7 @@ func main() {
 	SetupCloseHandler(csvFile) // handle CTRL+C
 
 	if noTerm {
-		log.Println("Terminal data output disabled")
+		log.Println("Realtime terminal data output disabled")
 	}
 
 	// Switch to Horizon format if needed
@@ -226,7 +226,7 @@ func main() {
 			endOffset = endOffset + dataLength
 			startOffset = endOffset - dataLength
 			telemItem := Telemetry{i, dataName, dataType, startOffset, endOffset} // Create new Telemetry item / data point
-			telemArray = append(telemArray, telemItem) // Add Telemetry item to main telemetry array
+			telemArray = append(telemArray, telemItem)                            // Add Telemetry item to main telemetry array
 		case "u32": // Unsigned 32bit int
 			dataLength = 4
 			endOffset = endOffset + dataLength

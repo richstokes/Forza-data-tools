@@ -31,7 +31,7 @@ Compile the application with: `go build -o fdt`
 Specify a CSV file to log to: `-c log.csv` (File will be overwritten if it exists)    
 Enable support for Forza Horizon: `-z`    
 Enable JSON server: `-j`   
-Disable realtime terminal output: `-d`   
+Disable realtime terminal output: `-q`   
 
 &nbsp;
 
