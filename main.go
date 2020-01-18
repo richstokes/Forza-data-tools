@@ -67,7 +67,7 @@ func readForzaData(conn *net.UDPConn, telemArray []Telemetry, csvFile string) {
 		data := buffer[:n][T.startOffset:T.endOffset] // Process received data in chunks based on byte offsets
 
 		if isFlagPassed("d") == true { // if debugMode, print received data in each chunk
-			log.Printf("Data chunk %d: %v (%s)", i, data, T.name)
+			log.Printf("Data chunk %d: %v (%s) (%s)", i, data, T.name, T.dataType)
 		}
 
 		switch T.dataType { // each data type needs to be converted / displayed differently
@@ -282,7 +282,7 @@ func main() {
 		}
 		//Debug format file processing:
 		if debugMode {
-			log.Printf("Processed %s line %d: %s (%s) \t\t\t Byte offset: %d:%d \n", formatFile, i, dataName, dataType, startOffset, endOffset)
+			log.Printf("Processed %s line %d: %s (%s),  Byte offset: %d:%d \n", formatFile, i, dataName, dataType, startOffset, endOffset)
 		}
 	}
 
