@@ -43,8 +43,11 @@ func readForzaData(conn *net.UDPConn, telemArray []Telemetry, csvFile string) {
 	if err != nil {
 		log.Fatal("Error reading UDP data:", err, addr)
 	}
-	// fmt.Println("UDP client:", addr)
-	// fmt.Println("Data from UDP client :  ", string(buffer[:n]))  // Debug: Dump entire received buffer
+
+	if isFlagPassed("d") == true { // Print extra connection info if debugMode set
+		log.Println("UDP client connected:", addr)
+		fmt.Printf("Raw Data from UDP client:\n%s", string(buffer[:n])) // Debug: Dump entire received buffer
+	}
 
 	// TODO: Check length of received packet:
 	// 324 = FH4
@@ -60,9 +63,14 @@ func readForzaData(conn *net.UDPConn, telemArray []Telemetry, csvFile string) {
 	s8map := make(map[string]int8)
 
 	// Use Telemetry array to map raw data against Forza's data format
-	for _, T := range telemArray {
-		data := buffer[:n][T.startOffset:T.endOffset] // Process data in chunks based on byte offsets
-		switch T.dataType {                           // each data type needs to be converted / displayed differently
+	for i, T := range telemArray {
+		data := buffer[:n][T.startOffset:T.endOffset] // Process received data in chunks based on byte offsets
+
+		if isFlagPassed("d") == true { // if debugMode, print received data in each chunk
+			log.Printf("Data chunk %d: %v (%s)", i, data, T.name)
+		}
+
+		switch T.dataType { // each data type needs to be converted / displayed differently
 		case "s32":
 			// fmt.Println("Name:", T.name, "Type:", T.dataType, "value:", binary.LittleEndian.Uint32(data))
 			s32map[T.name] = binary.LittleEndian.Uint32(data)
