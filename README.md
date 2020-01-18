@@ -27,16 +27,18 @@ Compile the application with: `go build -o fdt`
 &nbsp;
 
 ## Run
-### Command Options
+### Command line options
 Specify a CSV file to log to: `-c log.csv` (File will be overwritten if it exists)    
 Enable support for Forza Horizon: `-z`    
 Enable JSON server: `-j`   
 Disable realtime terminal output: `-q`   
+Enable debug information: `-d`
 
 &nbsp;
 
 ##### Example (Forza Horizon)
 `fdt -z -j -c log.csv`  
+`fdt -z`  
 
 ##### Example (Forza Motorsport)
 `fdt -c -j log.csv`  

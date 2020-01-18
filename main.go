@@ -180,13 +180,19 @@ func main() {
 	horizonPTR := flag.Bool("z", false, "Enables Forza Horizon 4 support (Will default to Forza Motorsport if unset)")
 	jsonPTR := flag.Bool("j", false, "Enables JSON HTTP server on port 8080")
 	noTermPTR := flag.Bool("q", false, "Disables realtime terminal output if set")
+	debugModePTR := flag.Bool("d", false, "Enables extra debug information if set")
 	flag.Parse()
 	csvFile := *csvFilePtr
 	horizonMode := *horizonPTR
 	jsonEnabled := *jsonPTR
 	noTerm := *noTermPTR
+	debugMode := *debugModePTR
 
 	SetupCloseHandler(csvFile) // handle CTRL+C
+
+	if debugMode {
+		log.Println("Debug mode enabled")
+	}
 
 	if noTerm {
 		log.Println("Realtime terminal data output disabled")
@@ -267,8 +273,15 @@ func main() {
 			log.Fatalf("Error: Unknown data type in %s \n", formatFile)
 		}
 		//Debug format file processing:
-		//log.Printf("Processed line %d: %s (%s) \t\t Byte offset: %d:%d \n", i, dataName, dataType, startOffset, endOffset)
+		if debugMode {
+			log.Printf("Processed %s line %d: %s (%s) \t\t\t Byte offset: %d:%d \n", formatFile, i, dataName, dataType, startOffset, endOffset)
+		}
 	}
+
+	if debugMode { // Print completed telemetry array
+		log.Printf("Logging entire telemArray: \n%v", telemArray)
+	}
+
 	log.Printf("Proccessed %d Telemetry types OK!", len(telemArray))
 
 	// Prepare CSV file if requested
@@ -301,7 +314,8 @@ func main() {
 	check(err)
 	defer listener.Close() // close after main ends - probably not really needed
 
-	log.Printf("Forza data out server listening on %s, waiting for Forza data...\n", service)
+	// log.Printf("Forza data out server listening on %s, waiting for Forza data...\n", service)
+	log.Printf("Forza data out server listening on %s:%s, waiting for Forza data...\n", GetOutboundIP(), port)
 
 	for { // main loop
 		readForzaData(listener, telemArray, csvFile) // Also pass telemArray to UDP function - might be a better way instea do of passing each time?
@@ -368,4 +382,17 @@ func readLines(path string) ([]string, error) {
 		lines = append(lines, scanner.Text())
 	}
 	return lines, scanner.Err()
+}
+
+// GetOutboundIP finds preferred outbound ip of this machine
+func GetOutboundIP() net.IP {
+	conn, err := net.Dial("udp", "1.2.3.4:4321") // Destination does not need to exist, using this to see which is the primary network interface
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer conn.Close()
+
+	localAddr := conn.LocalAddr().(*net.UDPAddr)
+
+	return localAddr.IP
 }
