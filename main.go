@@ -8,6 +8,7 @@ import (
 	"log"
 	"math"
 	"net"
+
 	// "time"
 	// "strconv"
 	"io/ioutil"
@@ -15,6 +16,7 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+
 	// "encoding/csv"
 	// "sort"
 	"encoding/json"
@@ -46,7 +48,7 @@ func readForzaData(conn *net.UDPConn, telemArray []Telemetry, csvFile string) {
 
 	if isFlagPassed("d") == true { // Print extra connection info if debugMode set
 		log.Println("UDP client connected:", addr)
-		fmt.Printf("Raw Data from UDP client:\n%s", string(buffer[:n])) // Debug: Dump entire received buffer
+		// fmt.Printf("Raw Data from UDP client:\n%s", string(buffer[:n])) // Debug: Dump entire received buffer
 	}
 
 	// TODO: Check length of received packet:
@@ -98,19 +100,22 @@ func readForzaData(conn *net.UDPConn, telemArray []Telemetry, csvFile string) {
 		return
 	}
 
-	// Print received data to terminal:
+	// Print received data to terminal (if not in quiet mode):
 	if isFlagPassed("q") == false {
 		log.Printf("RPM: %.0f \t Gear: %d \t BHP: %.0f \t Speed: %.0f \t Total slip: %.0f", f32map["CurrentEngineRpm"], u8map["Gear"], (f32map["Power"] / 745.7), (f32map["Speed"] * 2.237), (f32map["TireCombinedSlipRearLeft"] + f32map["TireCombinedSlipRearRight"]))
-		// Testing traction control sensor:
-		log.Printf("TireSlipRatioRearLeft: %.0f TireSlipRatioRearRight %.0f", f32map["TireCombinedSlipRearLeft"], f32map["TireCombinedSlipRearRight"])
+		// Testing traction control sensors:
+		log.Printf("TireSlipRatioRearLeft: %.0f TireSlipRatioRearRight %.0f", f32map["TireSlipRatioRearLeft"], f32map["TireSlipRatioRearRight"])
+		log.Printf("TireSlipAngleRearLeft: %.0f TireSlipAngleRearRight %.0f", f32map["TireSlipAngleRearLeft"], f32map["TireSlipAngleRearRight"])
+		log.Printf("TireCombinedSlipRearLeft: %.0f TireCombinedSlipRearRight %.0f", f32map["TireCombinedSlipRearLeft"], f32map["TireCombinedSlipRearRight"])
 
-		if f32map["TireCombinedSlipRearLeft"]+f32map["TireCombinedSlipRearRight"] > 30 { // Basic traction control detection testing where we allow slip up to a certain amount
-			log.Printf("Traction lost!")
+		// log.Printf("AccelerationX: %.0f", f32map["AccelerationX"])
+		// log.Printf("AccelerationZ: %.0f", f32map["AccelerationZ"])
+		// log.Printf("DistanceTraveled: %.0f", f32map["DistanceTraveled"])
+
+		// Might also want to test if brake is being applied here
+		if f32map["TireCombinedSlipRearLeft"]+f32map["TireCombinedSlipRearRight"] > 2 { // Basic traction control detection testing where we allow slip up to a certain amount
+			log.Printf("TRACTION LOST!")
 		}
-		// More tests:
-		// log.Println("RPM:", f32map["CurrentEngineRpm"], "Gear:", u8map["Gear"], "BHP:", (f32map["Power"] / 745.7), "Speed:", (f32map["Speed"] * 2.237))
-		// fmt.Println("BHP:", (f32map["Power"] / 745.7)) // Convert to BHP
-		// fmt.Println("Torque:", (f32map["Torque"] * 0.74)) // Conver to LB-FT
 	}
 
 	// Write data to CSV file if enabled:
