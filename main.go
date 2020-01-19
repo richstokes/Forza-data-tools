@@ -102,18 +102,29 @@ func readForzaData(conn *net.UDPConn, telemArray []Telemetry, csvFile string) {
 
 	// Print received data to terminal (if not in quiet mode):
 	if isFlagPassed("q") == false {
-		log.Printf("RPM: %.0f \t Gear: %d \t BHP: %.0f \t Speed: %.0f \t Total slip: %.0f", f32map["CurrentEngineRpm"], u8map["Gear"], (f32map["Power"] / 745.7), (f32map["Speed"] * 2.237), (f32map["TireCombinedSlipRearLeft"] + f32map["TireCombinedSlipRearRight"]))
-		// Testing traction control sensors:
-		log.Printf("TireSlipRatioRearLeft: %.0f TireSlipRatioRearRight %.0f", f32map["TireSlipRatioRearLeft"], f32map["TireSlipRatioRearRight"])
-		log.Printf("TireSlipAngleRearLeft: %.0f TireSlipAngleRearRight %.0f", f32map["TireSlipAngleRearLeft"], f32map["TireSlipAngleRearRight"])
-		log.Printf("TireCombinedSlipRearLeft: %.0f TireCombinedSlipRearRight %.0f", f32map["TireCombinedSlipRearLeft"], f32map["TireCombinedSlipRearRight"])
+		// Convert slip values to ints as the precision of a float means a neutral state is rarely reported
+		totalSlipRear := int(f32map["TireCombinedSlipRearLeft"] + f32map["TireCombinedSlipRearRight"])
+		totalSlipFront := int(f32map["TireCombinedSlipFrontLeft"] + f32map["TireCombinedSlipFrontRight"])
+		carAttitude := CheckAttitude(totalSlipFront, totalSlipRear)
 
+		log.Printf("RPM: %.0f \t Gear: %d \t BHP: %.0f \t Speed: %.0f \t Total slip: %.0f \t Attitude: %s", f32map["CurrentEngineRpm"], u8map["Gear"], (f32map["Power"] / 745.7), (f32map["Speed"] * 2.237), (f32map["TireCombinedSlipRearLeft"] + f32map["TireCombinedSlipRearRight"]), carAttitude)
+
+		// Testing traction control sensors:
+		// log.Printf("TireSlipRatioFrontLeft: %.0f TireSlipRatioFrontRight %.0f", f32map["TireSlipRatioFrontLeft"], f32map["TireSlipRatioFrontRight"])
+		// log.Printf("TireSlipAngleFrontLeft: %.0f TireSlipAngleFrontRight %.0f", f32map["TireSlipAngleFrontLeft"], f32map["TireSlipAngleFrontRight"])
+		// log.Printf("TireCombinedSlipFrontLeft: %.0f TireCombinedSlipFrontRight %.0f", f32map["TireCombinedSlipFrontLeft"], f32map["TireCombinedSlipFrontRight"])
+
+		// log.Printf("TireSlipRatioRearLeft: %.0f TireSlipRatioRearRight %.0f", f32map["TireSlipRatioRearLeft"], f32map["TireSlipRatioRearRight"])
+		// log.Printf("TireSlipAngleRearLeft: %.0f TireSlipAngleRearRight %.0f", f32map["TireSlipAngleRearLeft"], f32map["TireSlipAngleRearRight"])
+		// log.Printf("TireCombinedSlipRearLeft: %.0f TireCombinedSlipRearRight %.0f", f32map["TireCombinedSlipRearLeft"], f32map["TireCombinedSlipRearRight"])
+
+		// Testing other sensors
 		// log.Printf("AccelerationX: %.0f", f32map["AccelerationX"])
 		// log.Printf("AccelerationZ: %.0f", f32map["AccelerationZ"])
 		// log.Printf("DistanceTraveled: %.0f", f32map["DistanceTraveled"])
 
-		// Might also want to test if brake is being applied here
-		if f32map["TireCombinedSlipRearLeft"]+f32map["TireCombinedSlipRearRight"] > 2 { // Basic traction control detection testing where we allow slip up to a certain amount
+		// "Traction control" if slip higher than threshold and not understeering
+		if (totalSlipRear+totalSlipFront) > 2 && carAttitude == "Oversteer" { // Basic traction control detection testing where we allow slip up to a certain amount
 			log.Printf("TRACTION LOST!")
 		}
 	}
@@ -408,4 +419,21 @@ func GetOutboundIP() net.IP {
 	localAddr := conn.LocalAddr().(*net.UDPAddr)
 
 	return localAddr.IP
+}
+
+// CheckAttitude looks for balance of the car
+func CheckAttitude(totalSlipFront int, totalSlipRear int) string {
+	// Check attitude of car
+	// If front slip > rear slip, means car is understeering
+	if totalSlipRear > totalSlipFront {
+		// log.Printf("Car is oversteering")
+		return "Oversteer"
+	} else if totalSlipFront > totalSlipRear {
+		// log.Printf("Car is understeering")
+		return "Understeer"
+	} else {
+		// log.Printf("Car balance is neutral")
+		return "Neutral"
+	}
+
 }
