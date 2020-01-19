@@ -423,7 +423,7 @@ func GetOutboundIP() net.IP {
 
 // CheckAttitude looks for balance of the car
 func CheckAttitude(totalSlipFront int, totalSlipRear int) string {
-	// Check attitude of car
+	// Check attitude of car by comparing front and rear slip levels
 	// If front slip > rear slip, means car is understeering
 	if totalSlipRear > totalSlipFront {
 		// log.Printf("Car is oversteering")
