@@ -88,7 +88,7 @@ fdt.exe
 
 **"bind: address already in use" when running with `-j` flag**
 - Port 8080 is already being used by another application
-- Solution: Close the other application, or modify the `jsonServerPort` constant in `json-server.go` (line 10) to use a different port
+- Solution: Close the other application, or modify the `jsonServerPort` constant in the `json-server.go` file to use a different port
 
 **No data appearing in the terminal**
 - Check that Forza's "Data Out" feature is enabled and configured correctly
