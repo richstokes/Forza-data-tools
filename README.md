@@ -15,6 +15,27 @@ Building some tools for playing with the UDP data out feature from the Forza Mot
 (Feel free to open an issue if you have any suggestions/feature requests)
 &nbsp;
 
+## Prerequisites
+Before you can build and run this application, you need to have Go installed on your system.
+
+### Installing Go
+1. Download and install Go from the official website: https://golang.org/dl/
+2. Follow the installation instructions for your operating system:
+   - **Windows**: Run the MSI installer
+   - **macOS**: Use the PKG installer or install via Homebrew: `brew install go`
+   - **Linux**: Extract the archive and follow the installation steps in the Go documentation
+
+3. Verify your installation by opening a terminal/command prompt and running:
+   ```
+   go version
+   ```
+   You should see output showing the Go version installed.
+
+### Minimum Requirements
+- Go 1.13 or higher is recommended
+
+&nbsp;
+
 ## Setup
 From your game HUD options, enable the data out feature and set it to use the IP address of your computer. Port 9999.  
 
