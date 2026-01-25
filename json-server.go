@@ -11,8 +11,10 @@ import (
 const jsonServerPort = ":8080" // Port to serve JSON api on
 
 
+// responder handles HTTP requests to the /forza endpoint.
+// For browser requests (Accept: text/html), it serves an interactive dashboard.
+// For API requests, it returns raw JSON telemetry data.
 func responder(w http.ResponseWriter, r *http.Request) {
-
         switch r.Method {
         case "GET":
                 enableCors(&w)
@@ -34,6 +36,8 @@ func responder(w http.ResponseWriter, r *http.Request) {
         }
 }
 
+// getHTMLPage returns the HTML content for the interactive telemetry dashboard,
+// including gauges for RPM, speed, pedal inputs, boost, tire temps, and lap times.
 func getHTMLPage() string {
 	return `<!DOCTYPE html>
 <html lang="en">
@@ -561,6 +565,8 @@ func getHTMLPage() string {
 </html>`
 }
 
+// serveJSON starts the HTTP server on port 8080 to serve telemetry data.
+// The /forza endpoint serves either a web dashboard or raw JSON based on the request.
 func serveJSON() {
         http.HandleFunc("/forza", responder)
 
@@ -568,6 +574,7 @@ func serveJSON() {
         log.Fatal(http.ListenAndServe(jsonServerPort, nil))
 }
 
+// enableCors sets the Access-Control-Allow-Origin header to allow cross-origin requests.
 func enableCors(w *http.ResponseWriter) {
 	(*w).Header().Set("Access-Control-Allow-Origin", "*")
 }

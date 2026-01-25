@@ -9,6 +9,8 @@ import (
 	"sort"
 )
 
+// calcstats reads the CSV log file and displays race statistics including
+// average speed, top speed, and peak boost pressure.
 func calcstats(csvFile string) {
 	rows := readLog(csvFile)
 	// check data is received before doing anything, else will crash due to no data in the csv file
@@ -18,8 +20,9 @@ func calcstats(csvFile string) {
 	}
 }
 
+// readLog opens and parses a CSV file, returning its contents as a 2D slice of strings.
+// The first row contains column headers, subsequent rows contain data.
 func readLog(name string) [][]string {
-
 	f, err := os.Open(name)
 	// Usually we would return the error to the caller and handle
 	// all errors in function `main()`. However, this is just a
@@ -59,7 +62,8 @@ func readLog(name string) [][]string {
 	return rows
 }
 
-// calculate stats
+// calculate processes CSV telemetry data to compute and display race statistics:
+// average speed (MPH), top speed (MPH), and peak boost (PSI).
 func calculate(rows [][]string) [][]string {
 	// Find row numbers based on column header names (row 0)
 	speedRow := 0

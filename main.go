@@ -36,7 +36,10 @@ type Telemetry struct {
 	endOffset   int
 }
 
-// readForzaData processes recieved UDP packets
+// readForzaData processes received UDP packets from Forza games.
+// It parses the binary telemetry data according to the format defined in telemArray,
+// outputs telemetry to the terminal (unless quiet mode), writes to CSV if enabled,
+// and updates the global jsonData variable for the HTTP server.
 func readForzaData(conn *net.UDPConn, telemArray []Telemetry, csvFile string) {
 	buffer := make([]byte, 1500)
 
@@ -182,6 +185,9 @@ func readForzaData(conn *net.UDPConn, telemArray []Telemetry, csvFile string) {
 	} // end of if jsonEnabled
 }
 
+// main is the application entry point. It parses command-line flags, loads the
+// appropriate packet format file, initializes CSV logging and JSON server if enabled,
+// sets up the UDP listener, and enters the main loop to process incoming telemetry.
 func main() {
 	// Parse flags
 	csvFilePtr := flag.String("c", "", "Log data to given file in CSV format")
@@ -330,6 +336,8 @@ func main() {
 	}
 }
 
+// init configures the logger and prints a startup message.
+// Called automatically before main().
 func init() {
 	log.SetFlags(log.Lmicroseconds)
 	log.Println("Started Forza Data Tools")
@@ -337,7 +345,9 @@ func init() {
 
 // Helper functions
 
-// SetupCloseHandler performs some clean up on exit (CTRL+C)
+// SetupCloseHandler registers a handler for SIGINT/SIGTERM signals (e.g., Ctrl+C).
+// When triggered, it calculates and displays race statistics from the CSV log
+// (if CSV logging was enabled) before exiting gracefully.
 func SetupCloseHandler(csvFile string) {
 	c := make(chan os.Signal, 2)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
@@ -351,14 +361,14 @@ func SetupCloseHandler(csvFile string) {
 	}()
 }
 
-// Quick error check helper
+// check is a helper that logs a fatal error and exits if err is not nil.
 func check(e error) {
 	if e != nil {
 		log.Fatalln(e)
 	}
 }
 
-// Check if flag was passed
+// isFlagPassed checks whether a command-line flag with the given name was explicitly set.
 func isFlagPassed(name string) bool {
 	found := false
 	flag.Visit(func(f *flag.Flag) {
@@ -369,14 +379,14 @@ func isFlagPassed(name string) bool {
 	return found
 }
 
-// Float32frombytes converts bytes into a float32
+// Float32frombytes converts a 4-byte slice (little-endian) into a float32 value.
 func Float32frombytes(bytes []byte) float32 {
 	bits := binary.LittleEndian.Uint32(bytes)
 	float := math.Float32frombits(bits)
 	return float
 }
 
-// readLines reads a whole file into memory and returns a slice of its lines
+// readLines reads a file and returns its contents as a slice of strings, one per line.
 func readLines(path string) ([]string, error) {
 	file, err := os.Open(path)
 	if err != nil {
@@ -392,7 +402,8 @@ func readLines(path string) ([]string, error) {
 	return lines, scanner.Err()
 }
 
-// GetOutboundIP finds preferred outbound ip of this machine
+// GetOutboundIP returns the preferred outbound IP address of this machine
+// by creating a UDP connection (no actual traffic sent) and checking the local address.
 func GetOutboundIP() net.IP {
 	conn, err := net.Dial("udp", "1.2.3.4:4321") // Destination does not need to exist, using this to see which is the primary network interface
 	if err != nil {
@@ -405,7 +416,8 @@ func GetOutboundIP() net.IP {
 	return localAddr.IP
 }
 
-// CheckAttitude looks for balance of the car
+// CheckAttitude determines the car's handling state (Oversteer, Understeer, or Neutral)
+// by comparing front and rear tire slip values.
 func CheckAttitude(totalSlipFront int, totalSlipRear int) string {
 	// Check attitude of car by comparing front and rear slip levels
 	// If front slip > rear slip, means car is understeering
