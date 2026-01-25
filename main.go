@@ -56,7 +56,7 @@ func readForzaData(conn *net.UDPConn, telemArray []Telemetry, csvFile string) {
 	// fmt.Println(len(string(buffer[:n])))
 
 	// Create some maps to store the latest values for each data type
-	s32map := make(map[string]uint32)
+	s32map := make(map[string]int32)
 	u32map := make(map[string]uint32)
 	f32map := make(map[string]float32)
 	u16map := make(map[string]uint16)
@@ -65,6 +65,13 @@ func readForzaData(conn *net.UDPConn, telemArray []Telemetry, csvFile string) {
 
 	// Use Telemetry array to map raw data against Forza's data format
 	for i, T := range telemArray {
+		// Bounds check to avoid panic on malformed packets
+		if T.endOffset > n {
+			if isFlagPassed("d") {
+				log.Printf("Packet too small: need %d bytes, got %d", T.endOffset, n)
+			}
+			return
+		}
 		data := buffer[:n][T.startOffset:T.endOffset] // Process received data in chunks based on byte offsets
 
 		if isFlagPassed("d") { // if debugMode, print received data in each chunk
@@ -73,8 +80,7 @@ func readForzaData(conn *net.UDPConn, telemArray []Telemetry, csvFile string) {
 
 		switch T.dataType { // each data type needs to be converted / displayed differently
 		case "s32":
-			// fmt.Println("Name:", T.name, "Type:", T.dataType, "value:", binary.LittleEndian.Uint32(data))
-			s32map[T.name] = binary.LittleEndian.Uint32(data)
+			s32map[T.name] = int32(binary.LittleEndian.Uint32(data))
 		case "u32":
 			// fmt.Println("Name:", T.name, "Type:", T.dataType, "value:", binary.LittleEndian.Uint32(data))
 			u32map[T.name] = binary.LittleEndian.Uint32(data)
@@ -131,8 +137,10 @@ func readForzaData(conn *net.UDPConn, telemArray []Telemetry, csvFile string) {
 	// Write data to CSV file if enabled:
 	if isFlagPassed("c") {
 		file, err := os.OpenFile(csvFile, os.O_WRONLY|os.O_APPEND, 0644)
-		check(err)
-		defer file.Close()
+		if err != nil {
+			log.Printf("Error opening CSV file: %v", err)
+			return
+		}
 
 		csvLine := ""
 
@@ -156,44 +164,21 @@ func readForzaData(conn *net.UDPConn, telemArray []Telemetry, csvFile string) {
 		}
 		csvLine += "\n"
 
-		// log.Println(csvLine[1:])
-		fmt.Fprintf(file, csvLine[1:]) // write new line to file
+		fmt.Fprint(file, csvLine[1:]) // write new line to file
+		file.Close()
 	} // end of if CSV enabled
 
 	// Send data to JSON server if enabled:
 	if isFlagPassed("j") {
-		var jsonArray [][]byte
-
 		s32json, _ := json.Marshal(s32map)
-		jsonArray = append(jsonArray, s32json)
-
 		u32json, _ := json.Marshal(u32map)
-		jsonArray = append(jsonArray, u32json)
-
 		f32json, _ := json.Marshal(f32map)
-		jsonArray = append(jsonArray, f32json)
-
 		u16json, _ := json.Marshal(u16map)
-		jsonArray = append(jsonArray, u16json)
-
 		u8json, _ := json.Marshal(u8map)
-		jsonArray = append(jsonArray, u8json)
-
 		s8json, _ := json.Marshal(s8map)
-		jsonArray = append(jsonArray, s8json)
 
-		var jd []string
-		for i, j := range jsonArray { // concatenate json objects
-			if i == 0 {
-				jd = append(jd, string(j))
-			} else {
-				jd = append(jd, ", "+string(j))
-			}
-
-		}
-
-		jsonData = fmt.Sprintf("%s", jd)
-
+		// Build valid JSON array
+		jsonData = "[" + string(s32json) + ", " + string(u32json) + ", " + string(f32json) + ", " + string(u16json) + ", " + string(u8json) + ", " + string(s8json) + "]"
 	} // end of if jsonEnabled
 }
 
