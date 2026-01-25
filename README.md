@@ -18,7 +18,7 @@ Building some tools for playing with the UDP data out feature from the Forza Mot
 ## Prerequisites
 Before building this application, you need to have Go installed on your system.
 
-1. **Install Go**: Download and install Go from [https://golang.org/dl/](https://golang.org/dl/)
+1. **Install Go**: Download and install Go from [https://go.dev/dl/](https://go.dev/dl/)
    - For Windows: Download the `.msi` installer and run it
    - For macOS: Download the `.pkg` installer or use `brew install go`
    - For Linux: Download the archive and follow the installation instructions
@@ -27,7 +27,7 @@ Before building this application, you need to have Go installed on your system.
    ```
    go version
    ```
-   You should see output showing your Go version (e.g., `go version go1.21.3`)
+   You should see output showing your Go version (e.g., `go version go1.x.x` - any recent version will work)
 
 &nbsp;
 
