@@ -82,7 +82,7 @@ Enable debug information: `-d`
 `fdt -z`  
 
 ##### Example (Forza Motorsport)
-`fdt -c -j log.csv`  
+`fdt -c log.csv -j`  
 
 &nbsp;
 

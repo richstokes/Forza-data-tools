@@ -1,3 +1,3 @@
 module github.com/richstokes/Forza-data-tools
 
-go 1.21.3
+go 1.23

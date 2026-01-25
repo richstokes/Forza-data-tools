@@ -11,7 +11,6 @@ import (
 
 	// "time"
 	// "strconv"
-	"io/ioutil"
 	"os"
 	"os/signal"
 	"strings"
@@ -46,7 +45,7 @@ func readForzaData(conn *net.UDPConn, telemArray []Telemetry, csvFile string) {
 		log.Fatal("Error reading UDP data:", err, addr)
 	}
 
-	if isFlagPassed("d") == true { // Print extra connection info if debugMode set
+	if isFlagPassed("d") { // Print extra connection info if debugMode set
 		log.Println("UDP client connected:", addr)
 		// fmt.Printf("Raw Data from UDP client:\n%s", string(buffer[:n])) // Debug: Dump entire received buffer
 	}
@@ -68,7 +67,7 @@ func readForzaData(conn *net.UDPConn, telemArray []Telemetry, csvFile string) {
 	for i, T := range telemArray {
 		data := buffer[:n][T.startOffset:T.endOffset] // Process received data in chunks based on byte offsets
 
-		if isFlagPassed("d") == true { // if debugMode, print received data in each chunk
+		if isFlagPassed("d") { // if debugMode, print received data in each chunk
 			log.Printf("Data chunk %d: %v (%s) (%s)", i, data, T.name, T.dataType)
 		}
 
@@ -101,7 +100,7 @@ func readForzaData(conn *net.UDPConn, telemArray []Telemetry, csvFile string) {
 	}
 
 	// Print received data to terminal (if not in quiet mode):
-	if isFlagPassed("q") == false {
+	if !isFlagPassed("q") {
 		// Convert slip values to ints as the precision of a float means a neutral state is rarely reported
 		totalSlipRear := int(f32map["TireCombinedSlipRearLeft"] + f32map["TireCombinedSlipRearRight"])
 		totalSlipFront := int(f32map["TireCombinedSlipFrontLeft"] + f32map["TireCombinedSlipFrontRight"])
@@ -130,7 +129,7 @@ func readForzaData(conn *net.UDPConn, telemArray []Telemetry, csvFile string) {
 	}
 
 	// Write data to CSV file if enabled:
-	if isFlagPassed("c") == true {
+	if isFlagPassed("c") {
 		file, err := os.OpenFile(csvFile, os.O_WRONLY|os.O_APPEND, 0644)
 		check(err)
 		defer file.Close()
@@ -162,7 +161,7 @@ func readForzaData(conn *net.UDPConn, telemArray []Telemetry, csvFile string) {
 	} // end of if CSV enabled
 
 	// Send data to JSON server if enabled:
-	if isFlagPassed("j") == true {
+	if isFlagPassed("j") {
 		var jsonArray [][]byte
 
 		s32json, _ := json.Marshal(s32map)
@@ -309,7 +308,7 @@ func main() {
 	log.Printf("Proccessed %d Telemetry types OK!", len(telemArray))
 
 	// Prepare CSV file if requested
-	if isFlagPassed("c") == true {
+	if isFlagPassed("c") {
 		log.Println("Logging data to", csvFile)
 
 		csvHeader := ""
@@ -317,7 +316,7 @@ func main() {
 			csvHeader += "," + T.name
 		}
 		csvHeader = csvHeader + "\n"
-		err := ioutil.WriteFile(csvFile, []byte(csvHeader)[1:], 0644)
+		err := os.WriteFile(csvFile, []byte(csvHeader)[1:], 0644)
 		check(err)
 	} else {
 		log.Println("CSV Logging disabled")
@@ -359,7 +358,7 @@ func SetupCloseHandler(csvFile string) {
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-c
-		if isFlagPassed("c") == true { // Get stats if csv logging enabled
+		if isFlagPassed("c") { // Get stats if csv logging enabled
 			calcstats(csvFile)
 		}
 		fmt.Println("")
