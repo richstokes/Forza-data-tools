@@ -1,5 +1,9 @@
 # Forza data tools
-Building some tools for playing with the UDP data out feature from the Forza Motorsport 7 / Forza Horizon 4 games. Built with [golang](https://golang.org/dl/).  
+Building some tools for playing with the UDP data out feature from the Forza Motorsport and Forza Horizon games. Built with [golang](https://golang.org/dl/).  
+
+### Supported Games
+- Forza Motorsport 7 (and newer Forza Motorsport titles)
+- Forza Horizon 4, 5 (use the `-z` flag)  
 
 
 
@@ -61,7 +65,7 @@ If you encounter errors while building:
 After building the application, you need to configure your Forza game:
 
 1. From your game HUD options, enable the **data out** feature
-2. Set it to use the **IP address of your computer**
+2. Set it to use the **IP address of your computer** (the application will display this when it starts)
 3. Set the port to **9999**
 4. For Forza Motorsport 7, select the **"car dash"** format
 
@@ -70,19 +74,21 @@ After building the application, you need to configure your Forza game:
 ## Run
 ### Command line options
 Specify a CSV file to log to: `-c log.csv` (File will be overwritten if it exists)    
-Enable support for Forza Horizon: `-z`    
+Enable support for Forza Horizon 4/5: `-z`    
 Enable JSON server: `-j`   
 Disable realtime terminal output: `-q`   
 Enable debug information: `-d`
 
 &nbsp;
 
-##### Example (Forza Horizon)
-`fdt -z -j -c log.csv`  
-`fdt -z`  
+##### Example (Forza Horizon 4/5)
+`./fdt -z -j -c log.csv`  
+`./fdt -z`  
 
 ##### Example (Forza Motorsport)
-`fdt -c log.csv -j`  
+`./fdt -c log.csv -j`
+
+On Windows, use `fdt.exe` instead of `./fdt`.  
 
 &nbsp;
 
