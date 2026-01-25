@@ -339,8 +339,14 @@ func main() {
 // init configures the logger and prints a startup message.
 // Called automatically before main().
 func init() {
-	log.SetFlags(log.Lmicroseconds)
-	log.Println("Started Forza Data Tools")
+	log.SetFlags(log.Ltime)
+	banner := `
+ ___                  ___       _          _____         _
+| __|__ _ _ _____ _  |   \ __ _| |_ __ _  |_   _|__  ___| |___
+| _/ _ \ '_|_ / _` + "`" + ` | | |) / _` + "`" + ` |  _/ _` + "`" + ` |   | |/ _ \/ _ \ (_-<
+|_|\___/_| /__\__,_| |___/\__,_|\__\__,_|   |_|\___/\___/_/__/
+`
+	fmt.Println(banner)
 }
 
 // Helper functions
