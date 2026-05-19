@@ -83,3 +83,8 @@ u8 Gear;
 s8 Steer;
 s8 NormalizedDrivingLine;
 s8 NormalizedAIBrakeDifference;
+f32 TireWearFrontLeft; // Motorsport 2023 dash extension; 0.0 = new, 1.0 = fully worn
+f32 TireWearFrontRight; // Motorsport 2023 dash extension; 0.0 = new, 1.0 = fully worn
+f32 TireWearRearLeft; // Motorsport 2023 dash extension; 0.0 = new, 1.0 = fully worn
+f32 TireWearRearRight; // Motorsport 2023 dash extension; 0.0 = new, 1.0 = fully worn
+s32 TrackOrdinal; // Motorsport 2023 dash extension; older FM7 packets end before this field

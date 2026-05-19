@@ -1,39 +1,197 @@
 package main
 
 import (
-        // "encoding/json"
-        "fmt"
-        "log"
-        "net/http"
-        "strings"
+	// "encoding/json"
+	"fmt"
+	"log"
+	"net/http"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/gorilla/websocket"
 )
 
 const jsonServerPort = ":8080" // Port to serve JSON api on
 
+var telemetry = &telemetryHub{
+	latest:  []byte("[]"),
+	clients: make(map[*telemetryClient]struct{}),
+}
+
+var websocketUpgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool {
+		return true
+	},
+}
+
+type telemetryClient struct {
+	conn *websocket.Conn
+	send chan []byte
+}
+
+type telemetryHub struct {
+	mu      sync.RWMutex
+	latest  []byte
+	clients map[*telemetryClient]struct{}
+}
+
+func (h *telemetryHub) add(client *telemetryClient) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.clients[client] = struct{}{}
+}
+
+func (h *telemetryHub) remove(client *telemetryClient) {
+	h.mu.Lock()
+	if _, ok := h.clients[client]; ok {
+		delete(h.clients, client)
+		close(client.send)
+	}
+	h.mu.Unlock()
+
+	client.conn.Close()
+}
+
+func (h *telemetryHub) snapshot() []byte {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return append([]byte(nil), h.latest...)
+}
+
+func (h *telemetryHub) publish(payload []byte) {
+	payload = append([]byte(nil), payload...)
+
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	h.latest = payload
+	for client := range h.clients {
+		select {
+		case client.send <- payload:
+		default:
+			select {
+			case <-client.send:
+			default:
+			}
+			select {
+			case client.send <- payload:
+			default:
+			}
+		}
+	}
+}
+
+func publishJSONData(payload []byte) {
+	telemetry.publish(payload)
+}
 
 // responder handles HTTP requests to the /forza endpoint.
 // For browser requests (Accept: text/html), it serves an interactive dashboard.
 // For API requests, it returns raw JSON telemetry data.
 func responder(w http.ResponseWriter, r *http.Request) {
-        switch r.Method {
-        case "GET":
-                enableCors(&w)
-                
-                // Check if request is from a browser (Accept header contains text/html)
-                acceptHeader := r.Header.Get("Accept")
-                if strings.Contains(acceptHeader, "text/html") {
-                        // Serve auto-refreshing HTML page for browsers
-                        w.Header().Set("Content-Type", "text/html; charset=utf-8")
-                        w.Write([]byte(getHTMLPage()))
-                } else {
-                        // Serve raw JSON for API requests
-                        w.Header().Set("Content-Type", "application/json")
-                        w.Write([]byte(jsonData))
-                }
-        default:
-                w.WriteHeader(http.StatusMethodNotAllowed)
-                fmt.Fprintf(w, "Not supported.")
-        }
+	switch r.Method {
+	case "GET":
+		enableCors(&w)
+
+		// Check if request is from a browser (Accept header contains text/html)
+		acceptHeader := r.Header.Get("Accept")
+		if strings.Contains(acceptHeader, "text/html") {
+			// Serve auto-refreshing HTML page for browsers
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Write([]byte(getHTMLPage()))
+		} else {
+			// Serve raw JSON for API requests
+			w.Header().Set("Content-Type", "application/json")
+			w.Write(telemetry.snapshot())
+		}
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		fmt.Fprintf(w, "Not supported.")
+	}
+}
+
+func jsonResponder(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		fmt.Fprintf(w, "Not supported.")
+		return
+	}
+
+	enableCors(&w)
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(telemetry.snapshot())
+}
+
+func websocketResponder(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		fmt.Fprintf(w, "Not supported.")
+		return
+	}
+
+	conn, err := websocketUpgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Printf("WebSocket upgrade failed: %v", err)
+		return
+	}
+
+	client := &telemetryClient{
+		conn: conn,
+		send: make(chan []byte, 1),
+	}
+	telemetry.add(client)
+
+	if latest := telemetry.snapshot(); len(latest) > 0 && string(latest) != "[]" {
+		client.send <- latest
+	}
+
+	go client.writePump()
+	client.readPump()
+}
+
+func (client *telemetryClient) readPump() {
+	defer telemetry.remove(client)
+
+	client.conn.SetReadLimit(512)
+	client.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	client.conn.SetPongHandler(func(string) error {
+		client.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		return nil
+	})
+
+	for {
+		if _, _, err := client.conn.NextReader(); err != nil {
+			return
+		}
+	}
+}
+
+func (client *telemetryClient) writePump() {
+	ticker := time.NewTicker(30 * time.Second)
+	defer func() {
+		ticker.Stop()
+		telemetry.remove(client)
+	}()
+
+	for {
+		select {
+		case payload, ok := <-client.send:
+			client.conn.SetWriteDeadline(time.Now().Add(time.Second))
+			if !ok {
+				client.conn.WriteMessage(websocket.CloseMessage, []byte{})
+				return
+			}
+			if err := client.conn.WriteMessage(websocket.TextMessage, payload); err != nil {
+				return
+			}
+		case <-ticker.C:
+			client.conn.SetWriteDeadline(time.Now().Add(time.Second))
+			if err := client.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				return
+			}
+		}
+	}
 }
 
 // getHTMLPage returns the HTML content for the interactive telemetry dashboard,
@@ -240,6 +398,72 @@ func getHTMLPage() string {
             background: rgba(255,255,255,0.3);
             transform: translateX(-50%);
         }
+
+        /* Slip Angle */
+        .slip-container { text-align: center; }
+        .slip-value {
+            font-size: 52px;
+            font-weight: 700;
+            line-height: 1;
+        }
+        .slip-direction {
+            min-height: 20px;
+            margin-top: 6px;
+            font-size: 13px;
+            color: rgba(255,255,255,0.55);
+            text-transform: uppercase;
+        }
+        .slip-track {
+            position: relative;
+            height: 16px;
+            margin: 24px 4px 10px;
+            overflow: hidden;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.1);
+        }
+        .slip-track::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 50%;
+            width: 2px;
+            background: rgba(255,255,255,0.35);
+            transform: translateX(-50%);
+        }
+        .slip-fill {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 0;
+            transition: width 0.1s ease;
+        }
+        .slip-fill-left {
+            right: 50%;
+            background: linear-gradient(270deg, #74b9ff, #00d4ff);
+        }
+        .slip-fill-right {
+            left: 50%;
+            background: linear-gradient(90deg, #00d4ff, #ff9f43);
+        }
+        .slip-needle {
+            position: absolute;
+            top: -6px;
+            left: 50%;
+            width: 4px;
+            height: 28px;
+            border-radius: 2px;
+            background: #fff;
+            box-shadow: 0 0 12px rgba(0,212,255,0.75);
+            transform: translateX(-50%);
+            transition: left 0.1s ease;
+        }
+        .slip-scale {
+            display: flex;
+            justify-content: space-between;
+            color: rgba(255,255,255,0.4);
+            font-size: 11px;
+        }
         
         /* Car Info */
         .info-grid {
@@ -338,6 +562,25 @@ func getHTMLPage() string {
                 </div>
             </div>
         </div>
+
+        <!-- Slip Angle -->
+        <div class="card">
+            <div class="card-title">Overall Slip Angle</div>
+            <div class="slip-container">
+                <div id="slipAngleValue" class="slip-value">0.0°</div>
+                <div id="slipDirection" class="slip-direction">Centered</div>
+                <div class="slip-track">
+                    <div id="slipFillLeft" class="slip-fill slip-fill-left"></div>
+                    <div id="slipFillRight" class="slip-fill slip-fill-right"></div>
+                    <div id="slipNeedle" class="slip-needle"></div>
+                </div>
+                <div class="slip-scale">
+                    <span>Left 30°</span>
+                    <span>0°</span>
+                    <span>Right 30°</span>
+                </div>
+            </div>
+        </div>
         
         <!-- Pedals -->
         <div class="card">
@@ -433,13 +676,72 @@ func getHTMLPage() string {
     </div>
     
     <div class="raw-toggle">
-        <a href="/forza" target="_blank">View Raw JSON →</a>
+        <a href="/forza.json" target="_blank">View Raw JSON →</a>
     </div>
     
     <script>
-        let failCount = 0;
-        const maxFails = 5;
+        let socket = null;
+        let reconnectTimer = null;
         let maxRpm = 8000;
+
+        function setStatus(state, text) {
+            const status = document.getElementById('status');
+            status.className = 'status ' + state;
+            status.textContent = text;
+        }
+
+        function numberOrNull(value) {
+            const number = Number(value);
+            return Number.isFinite(number) ? number : null;
+        }
+
+        function clamp(value, min, max) {
+            return Math.min(Math.max(value, min), max);
+        }
+
+        function calculateSlipAngleDegrees(data) {
+            const lateralVelocity = numberOrNull(data.VelocityX);
+            const forwardVelocity = numberOrNull(data.VelocityZ);
+            if (lateralVelocity === null || forwardVelocity === null) {
+                return null;
+            }
+
+            const speed = Math.hypot(lateralVelocity, forwardVelocity);
+            if (speed < 1) {
+                return 0;
+            }
+
+            return Math.atan2(lateralVelocity, Math.abs(forwardVelocity)) * (180 / Math.PI);
+        }
+
+        function getOverallSlipState(data, slipAngle) {
+            if (slipAngle === null) {
+                return 'No Data';
+            }
+
+            const absAngle = Math.abs(slipAngle);
+            if (absAngle < 4) {
+                return 'Stable';
+            }
+
+            const direction = slipAngle < 0 ? 'Left' : 'Right';
+            const combinedSlipValues = [
+                data.TireCombinedSlipFrontLeft,
+                data.TireCombinedSlipFrontRight,
+                data.TireCombinedSlipRearLeft,
+                data.TireCombinedSlipRearRight
+            ]
+                .map(numberOrNull)
+                .filter(value => value !== null)
+                .map(Math.abs);
+            const maxCombinedSlip = combinedSlipValues.length ? Math.max(...combinedSlipValues) : 0;
+
+            if (maxCombinedSlip >= 1.1) {
+                return 'Sliding ' + direction;
+            }
+
+            return 'Cornering ' + direction;
+        }
         
         function formatLapTime(seconds) {
             if (!seconds || seconds <= 0) return '--';
@@ -455,10 +757,6 @@ func getHTMLPage() string {
             return 'overheat';
         }
         
-        function celsiusToFahrenheit(c) {
-            return (c * 9/5) + 32;
-        }
-        
         function updateDashboard(data) {
             const d = {};
             if (Array.isArray(data)) {
@@ -471,8 +769,11 @@ func getHTMLPage() string {
             document.getElementById('dashboard').style.display = 'grid';
             
             // RPM
-            const rpm = d.CurrentEngineRpm || 0;
-            maxRpm = Math.max(maxRpm, d.EngineMaxRpm || 8000);
+            const rpm = Math.max(numberOrNull(d.CurrentEngineRpm) || 0, 0);
+            const engineMaxRpm = numberOrNull(d.EngineMaxRpm);
+            if (engineMaxRpm && engineMaxRpm > 0 && engineMaxRpm < 20000) {
+                maxRpm = Math.max(maxRpm, engineMaxRpm);
+            }
             const rpmPercent = Math.min(rpm / maxRpm, 1);
             document.getElementById('rpmValue').textContent = Math.round(rpm);
             document.getElementById('rpmFill').style.strokeDashoffset = 283 - (283 * rpmPercent);
@@ -485,13 +786,25 @@ func getHTMLPage() string {
             document.getElementById('gearValue').textContent = gearDisplay;
             
             // Speed (m/s to MPH)
-            const speedMph = (d.Speed || 0) * 2.237;
-            document.getElementById('speedValue').textContent = Math.round(speedMph);
+            const speed = numberOrNull(d.Speed);
+            const speedMph = speed === null ? null : Math.max(speed * 2.2369362920544, 0);
+            document.getElementById('speedValue').textContent = speedMph !== null && speedMph <= 350 ? Math.round(speedMph) : '--';
+
+            // Overall vehicle slip angle from local lateral vs forward velocity
+            const slipAngle = calculateSlipAngleDegrees(d);
+            const slipGaugeLimit = 30;
+            const boundedSlip = slipAngle === null ? 0 : clamp(slipAngle, -slipGaugeLimit, slipGaugeLimit);
+            const slipPercent = Math.abs(boundedSlip) / slipGaugeLimit * 50;
+            document.getElementById('slipAngleValue').textContent = slipAngle === null ? '--' : Math.abs(slipAngle).toFixed(1) + '°';
+            document.getElementById('slipDirection').textContent = getOverallSlipState(d, slipAngle);
+            document.getElementById('slipNeedle').style.left = (50 + (boundedSlip / slipGaugeLimit * 50)) + '%';
+            document.getElementById('slipFillLeft').style.width = boundedSlip < 0 ? slipPercent + '%' : '0%';
+            document.getElementById('slipFillRight').style.width = boundedSlip > 0 ? slipPercent + '%' : '0%';
             
             // Pedals (0-255 range)
-            const throttle = ((d.Accel || 0) / 255) * 100;
-            const brake = ((d.Brake || 0) / 255) * 100;
-            const clutch = ((d.Clutch || 0) / 255) * 100;
+            const throttle = clamp(((numberOrNull(d.Accel) || 0) / 255) * 100, 0, 100);
+            const brake = clamp(((numberOrNull(d.Brake) || 0) / 255) * 100, 0, 100);
+            const clutch = clamp(((numberOrNull(d.Clutch) || 0) / 255) * 100, 0, 100);
             
             document.getElementById('throttleValue').textContent = Math.round(throttle) + '%';
             document.getElementById('throttleFill').style.width = throttle + '%';
@@ -501,7 +814,7 @@ func getHTMLPage() string {
             document.getElementById('clutchFill').style.width = clutch + '%';
             
             // Boost
-            const boost = d.Boost || 0;
+            const boost = numberOrNull(d.Boost) || 0;
             const boostEl = document.getElementById('boostValue');
             boostEl.textContent = boost.toFixed(1);
             boostEl.className = boost >= 0 ? 'boost-value boost' : 'boost-value vacuum';
@@ -514,7 +827,7 @@ func getHTMLPage() string {
                 document.getElementById('boostPositive').style.width = Math.min(boost / 30 * 50, 50) + '%';
             }
             
-            // Tire temps (C to F)
+            // Tire temps from Forza Data Out
             const tires = [
                 { id: 'FL', temp: d.TireTempFrontLeft },
                 { id: 'FR', temp: d.TireTempFrontRight },
@@ -523,9 +836,18 @@ func getHTMLPage() string {
             ];
             
             tires.forEach(tire => {
-                const tempF = celsiusToFahrenheit(tire.temp || 0);
-                document.getElementById('tire' + tire.id + 'Temp').textContent = Math.round(tempF);
-                document.getElementById('tire' + tire.id).className = 'tire ' + getTireClass(tempF);
+                const tempF = numberOrNull(tire.temp);
+                const tireTemp = document.getElementById('tire' + tire.id + 'Temp');
+                const tireBox = document.getElementById('tire' + tire.id);
+
+                if (tempF === null || tempF < -40 || tempF > 500) {
+                    tireTemp.textContent = '--';
+                    tireBox.className = 'tire cold';
+                    return;
+                }
+
+                tireTemp.textContent = Math.round(tempF);
+                tireBox.className = 'tire ' + getTireClass(tempF);
             });
             
             // Session info
@@ -535,31 +857,50 @@ func getHTMLPage() string {
             document.getElementById('bestLapValue').textContent = formatLapTime(d.BestLap);
             document.getElementById('lastLapValue').textContent = formatLapTime(d.LastLap);
         }
-        
-        function updateData() {
-            fetch('/forza', { headers: { 'Accept': 'application/json' } })
-            .then(response => response.text())
-            .then(data => {
-                if (!data || data.trim() === '' || data === '[]') {
-                    throw new Error('No data');
-                }
-                const jsonObj = JSON.parse(data);
-                updateDashboard(jsonObj);
-                document.getElementById('status').className = 'status connected';
-                document.getElementById('status').textContent = 'LIVE';
-                failCount = 0;
-            })
-            .catch(error => {
-                failCount++;
-                if (failCount >= maxFails) {
-                    document.getElementById('status').className = 'status disconnected';
-                    document.getElementById('status').textContent = 'DISCONNECTED';
+
+        function handleTelemetryMessage(data) {
+            if (!data || data.trim() === '' || data === '[]') {
+                return;
+            }
+
+            updateDashboard(JSON.parse(data));
+            setStatus('connected', 'LIVE');
+        }
+
+        function scheduleReconnect() {
+            setStatus('disconnected', 'RECONNECTING');
+            window.clearTimeout(reconnectTimer);
+            reconnectTimer = window.setTimeout(connectTelemetry, 1000);
+        }
+
+        function connectTelemetry() {
+            if (socket && (socket.readyState === WebSocket.CONNECTING || socket.readyState === WebSocket.OPEN)) {
+                return;
+            }
+
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            socket = new WebSocket(protocol + '//' + window.location.host + '/forza/ws');
+
+            socket.addEventListener('open', () => {
+                setStatus('connected', 'LIVE');
+            });
+
+            socket.addEventListener('message', event => {
+                try {
+                    handleTelemetryMessage(event.data);
+                } catch (error) {
+                    setStatus('disconnected', 'BAD DATA');
                 }
             });
+
+            socket.addEventListener('close', scheduleReconnect);
+            socket.addEventListener('error', () => {
+                setStatus('disconnected', 'DISCONNECTED');
+                socket.close();
+            });
         }
-        
-        updateData();
-        setInterval(updateData, 100);
+
+        connectTelemetry();
     </script>
 </body>
 </html>`
@@ -568,10 +909,20 @@ func getHTMLPage() string {
 // serveJSON starts the HTTP server on port 8080 to serve telemetry data.
 // The /forza endpoint serves either a web dashboard or raw JSON based on the request.
 func serveJSON() {
-        http.HandleFunc("/forza", responder)
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" {
+			http.NotFound(w, r)
+			return
+		}
 
-        log.Printf("JSON Telemetry Server started at http://localhost%s", jsonServerPort)
-        log.Fatal(http.ListenAndServe(jsonServerPort, nil))
+		http.Redirect(w, r, "/forza", http.StatusFound)
+	})
+	http.HandleFunc("/forza/ws", websocketResponder)
+	http.HandleFunc("/forza.json", jsonResponder)
+	http.HandleFunc("/forza", responder)
+
+	log.Printf("JSON Telemetry Server started at http://localhost%s/forza", jsonServerPort)
+	log.Fatal(http.ListenAndServe(jsonServerPort, nil))
 }
 
 // enableCors sets the Access-Control-Allow-Origin header to allow cross-origin requests.

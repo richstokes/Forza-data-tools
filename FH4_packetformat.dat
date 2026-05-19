@@ -56,7 +56,9 @@ s32 CarClass; //Between 0 (D -- worst cars) and 7 (X class -- best cars) inclusi
 s32 CarPerformanceIndex; //Between 100 (slowest car) and 999 (fastest car) inclusive
 s32 DrivetrainType; //Corresponds to EDrivetrainType; 0 = FWD, 1 = RWD, 2 = AWD
 s32 NumCylinders; //Number of cylinders in the engine
-hzn HorizonPlaceholder; // unknown FH4 values
+s32 CarCategory; // Horizon extra; community mapped first 4 bytes of the old placeholder
+u32 HorizonUnknown1; // Horizon extra
+u32 HorizonUnknown2; // Horizon extra
 f32 PositionX;
 f32 PositionY;
 f32 PositionZ;
@@ -84,3 +86,4 @@ u8 Gear;
 s8 Steer;
 s8 NormalizedDrivingLine;
 s8 NormalizedAIBrakeDifference;
+u8 HorizonTrailingUnknown; // Some Horizon packets include one trailing byte; older 323-byte packets end before this field

@@ -25,7 +25,7 @@ const hostname = "0.0.0.0"            // Address to listen on (0.0.0.0 = all int
 const port = "9999"                   // UDP Port number to listen on
 const service = hostname + ":" + port // Combined hostname+port
 
-var jsonData string // Stores the JSON data to be sent out via the web server if enabled
+var packetFormatWarningShown bool
 
 // Telemetry struct represents a piece of telemetry as defined in the Forza data format (see the .dat files)
 type Telemetry struct {
@@ -39,8 +39,8 @@ type Telemetry struct {
 // readForzaData processes received UDP packets from Forza games.
 // It parses the binary telemetry data according to the format defined in telemArray,
 // outputs telemetry to the terminal (unless quiet mode), writes to CSV if enabled,
-// and updates the global jsonData variable for the HTTP server.
-func readForzaData(conn *net.UDPConn, telemArray []Telemetry, csvFile string) {
+// and publishes the latest JSON payload to the HTTP/WebSocket server.
+func readForzaData(conn *net.UDPConn, telemArray []Telemetry, csvFile string, formatFile string) {
 	buffer := make([]byte, 1500)
 
 	n, addr, err := conn.ReadFromUDP(buffer)
@@ -53,10 +53,7 @@ func readForzaData(conn *net.UDPConn, telemArray []Telemetry, csvFile string) {
 		// fmt.Printf("Raw Data from UDP client:\n%s", string(buffer[:n])) // Debug: Dump entire received buffer
 	}
 
-	// TODO: Check length of received packet:
-	// 324 = FH4
-	// use this to switch formats?
-	// fmt.Println(len(string(buffer[:n])))
+	warnIfPacketFormatLooksWrong(n, formatFile)
 
 	// Create some maps to store the latest values for each data type
 	s32map := make(map[string]int32)
@@ -73,7 +70,7 @@ func readForzaData(conn *net.UDPConn, telemArray []Telemetry, csvFile string) {
 			if isFlagPassed("d") {
 				log.Printf("Packet too small: need %d bytes, got %d", T.endOffset, n)
 			}
-			return
+			continue
 		}
 		data := buffer[:n][T.startOffset:T.endOffset] // Process received data in chunks based on byte offsets
 
@@ -104,7 +101,7 @@ func readForzaData(conn *net.UDPConn, telemArray []Telemetry, csvFile string) {
 	// Dont print / log / do anything if RPM is zero
 	// This happens if the game is paused or you rewind
 	// There is a bug with FH4 where it will continue to send data when in certain menus
-	if f32map["CurrentEngineRpm"] == 0 {
+	if isInvalidFloat32(f32map["CurrentEngineRpm"]) || f32map["CurrentEngineRpm"] == 0 {
 		return
 	}
 
@@ -173,15 +170,15 @@ func readForzaData(conn *net.UDPConn, telemArray []Telemetry, csvFile string) {
 
 	// Send data to JSON server if enabled:
 	if isFlagPassed("j") {
-		s32json, _ := json.Marshal(s32map)
-		u32json, _ := json.Marshal(u32map)
-		f32json, _ := json.Marshal(f32map)
-		u16json, _ := json.Marshal(u16map)
-		u8json, _ := json.Marshal(u8map)
-		s8json, _ := json.Marshal(s8map)
+		sanitizeFloat32Map(f32map)
 
-		// Build valid JSON array
-		jsonData = "[" + string(s32json) + ", " + string(u32json) + ", " + string(f32json) + ", " + string(u16json) + ", " + string(u8json) + ", " + string(s8json) + "]"
+		payload, err := json.Marshal([]any{s32map, u32map, f32map, u16map, u8map, s8map})
+		if err != nil {
+			log.Printf("Error encoding JSON telemetry: %v", err)
+			return
+		}
+
+		publishJSONData(payload)
 	} // end of if jsonEnabled
 }
 
@@ -332,7 +329,7 @@ func main() {
 	log.Printf("Forza data out server listening on %s:%s, waiting for Forza data...\n", GetOutboundIP(), port)
 
 	for { // main loop
-		readForzaData(listener, telemArray, csvFile) // Also pass telemArray to UDP function - might be a better way instea do of passing each time?
+		readForzaData(listener, telemArray, csvFile, formatFile) // Also pass telemArray to UDP function - might be a better way instea do of passing each time?
 	}
 }
 
@@ -383,6 +380,35 @@ func isFlagPassed(name string) bool {
 		}
 	})
 	return found
+}
+
+func warnIfPacketFormatLooksWrong(packetLength int, formatFile string) {
+	if packetFormatWarningShown {
+		return
+	}
+
+	if formatFile == "FM7_packetformat.dat" && packetLength != 311 && packetLength != 331 {
+		log.Printf("Received a %d-byte packet while using Motorsport format. Speed, tire temps, and other dash fields may be wrong; restart with -z if this is a Horizon game.", packetLength)
+		packetFormatWarningShown = true
+		return
+	}
+
+	if formatFile == "FH4_packetformat.dat" && packetLength != 323 && packetLength != 324 {
+		log.Printf("Received a %d-byte packet while using Horizon format. Speed, tire temps, and other dash fields may be wrong; restart without -z if this is a Motorsport game.", packetLength)
+		packetFormatWarningShown = true
+	}
+}
+
+func sanitizeFloat32Map(values map[string]float32) {
+	for key, value := range values {
+		if isInvalidFloat32(value) {
+			delete(values, key)
+		}
+	}
+}
+
+func isInvalidFloat32(value float32) bool {
+	return math.IsNaN(float64(value)) || math.IsInf(float64(value), 0)
 }
 
 // Float32frombytes converts a 4-byte slice (little-endian) into a float32 value.

@@ -1,107 +1,127 @@
-# Forza data tools
-Building some tools for playing with the UDP data out feature from the Forza Motorsport and Forza Horizon games. Built with [golang](https://golang.org/dl/).  
+# Forza Data Tools
 
-### Supported Games
-- Forza Motorsport 7 (and newer Forza Motorsport titles)
-- Forza Horizon 4, 5 (use the `-z` flag)  
+Tools for reading Forza Data Out UDP telemetry, printing live values in the terminal, logging CSV data, and serving a browser dashboard.
 
+## Supported Games
 
-
+- Forza Motorsport 7
+- Forza Motorsport (2023) and newer Motorsport titles
+- Forza Horizon 4, 5, and 6 with the `-z` flag
 
 ## Features
-- Realtime telemetry output to terminal  
-- Telemetry data logging to csv file  
-- Serve Forza Telemetry data as JSON over HTTP
-- Display race statistics from race/drive (when logging to CSV)  
 
+- Realtime telemetry output in the terminal
+- CSV telemetry logging
+- Built-in live web dashboard using WebSockets for fast updates
+- Raw telemetry JSON over HTTP
+- Race/drive statistics from CSV logs
 
+## Dashboard Preview
 
-(Feel free to open an issue if you have any suggestions/feature requests)
-&nbsp;
+<img src="dash/dashboard-screenshot.jpg" alt="Forza telemetry dashboard" width="640">
 
 ## Prerequisites
-Before building this application, you need to have Go installed on your system.
 
-1. **Install Go**: Download and install Go from [https://go.dev/dl/](https://go.dev/dl/)
-   - For Windows: Download the `.msi` installer and run it
-   - For macOS: Download the `.pkg` installer or use `brew install go`
-   - For Linux: Download the archive and follow the installation instructions
+Install Go from [https://go.dev/dl/](https://go.dev/dl/) or with your package manager:
 
-2. **Verify Go installation**: Open a terminal/command prompt and run:
-   ```
-   go version
-   ```
-   You should see output showing your Go version (e.g., `go version go1.x.x` - any recent version will work)
+```sh
+brew install go
+```
 
-&nbsp;
+Check that Go is available:
+
+```sh
+go version
+```
+
+Any recent Go version should work.
 
 ## Build
-To compile the application:
 
-1. **Clone or download this repository**
-2. **Open a terminal/command prompt** and navigate to the project directory
-3. **Build the application** with:
-   ```
-   go build -o fdt
-   ```
-   On Windows, you might want to use:
-   ```
-   go build -o fdt.exe
-   ```
+Build the app from the repository directory:
 
-This will create an executable file named `fdt` (or `fdt.exe` on Windows) in the current directory.
+```sh
+go build -o fdt
+```
 
-### Troubleshooting Build Issues
+On Windows:
 
-If you encounter errors while building:
+```sh
+go build -o fdt.exe
+```
 
-- **"go: command not found"**: Go is not installed or not in your system PATH. Install Go and make sure it's added to your PATH.
-- **Module-related errors**: Run `go mod download` to ensure all dependencies are available (though this project uses only the Go standard library).
-- **Permission errors**: Make sure you have write permissions in the directory where you're building.
-
-&nbsp;
+This creates an executable named `fdt` or `fdt.exe`.
 
 ## Game Setup
-After building the application, you need to configure your Forza game:
 
-1. From your game HUD options, enable the **data out** feature
-2. Set it to use the **IP address of your computer** (the application will display this when it starts)
-3. Set the port to **9999**
-4. For Forza Motorsport 7, select the **"car dash"** format
+1. In your Forza HUD/gameplay options, enable **Data Out**.
+2. Set the destination IP address to your computer's IP address. The app prints this address when it starts.
+3. Set the Data Out port to `9999`.
+4. For Motorsport games, select **car dash** format when the option is available.
+5. For Horizon games, run this app with `-z`.
 
-&nbsp;
+If RPM looks correct but speed, tire temperatures, gear, or lap values are wildly wrong, the app is probably using the wrong packet layout. Restart with `-z` for Horizon games, and without `-z` for Motorsport games.
 
 ## Run
-### Command line options
-Specify a CSV file to log to: `-c log.csv` (File will be overwritten if it exists)    
-Enable support for Forza Horizon 4/5: `-z`    
-Enable JSON server: `-j`   
-Disable realtime terminal output: `-q`   
-Enable debug information: `-d`
 
-&nbsp;
+### Options
 
-##### Example (Forza Horizon 4/5)
-`./fdt -z -j -c log.csv`  
-`./fdt -z`  
+| Flag | Description |
+| --- | --- |
+| `-c log.csv` | Log telemetry to a CSV file. Existing files are overwritten. |
+| `-z` | Use the Horizon packet layout for Forza Horizon 4/5/6. |
+| `-j` | Enable the JSON/WebSocket server and browser dashboard. |
+| `-q` | Disable realtime terminal output. |
+| `-d` | Enable debug logging. |
 
-##### Example (Forza Motorsport)
-`./fdt -c log.csv -j`
+### Examples
 
-On Windows, use `fdt.exe` instead of `./fdt`.  
+Forza Horizon 4/5/6:
 
-&nbsp;
+```sh
+./fdt -z -j -c log.csv
+```
 
-### JSON Data
-If the `-j` flag is provided, JSON data will be available at: http://localhost:8080/forza. Could be used to make a web dashboard interface or something similar. JSON Format is an array of objects containing the various Forza data types.  
+Forza Motorsport:
 
-You can see a sample of the kind of data that will be returned [here](https://github.com/richstokes/Forza-data-tools/blob/master/dash/sample.json).  
+```sh
+./fdt -j -c log.csv
+```
 
-There is a basic example JavaScript dashboard (with rev limiter function) in the `/dash` directory.  
+Dashboard-only, quiet terminal mode:
 
-&nbsp; 
+```sh
+./fdt -z -j -q
+```
 
-## Further reading
-- Forza data out format: https://forums.forzamotorsport.net/turn10_postsm926839_Forza-Motorsport-7--Data-Out--feature-details.aspx#post_926839
+On Windows, use `fdt.exe` instead of `./fdt`.
 
-- Forza Horizon 4 has some mystery data in the packet, waiting on info from the developers: https://forums.forzamotorsport.net/turn10_postsm1086012_Data-Output.aspx#post_1086012
+## Dashboard And JSON
+
+When `-j` is enabled, open the dashboard at:
+
+<http://localhost:8080/forza>
+
+The dashboard subscribes to `/forza/ws` over WebSockets for live updates.
+
+Raw JSON is available at:
+
+<http://localhost:8080/forza.json>
+
+The JSON format is an array of objects containing the parsed Forza telemetry fields. A sample is available at [dash/sample.json](dash/sample.json).
+
+The older standalone example dashboard remains in [dash/index.html](dash/index.html).
+
+## Troubleshooting
+
+- **`go: command not found`**: Install Go and make sure it is on your `PATH`.
+- **Module download errors**: Run `go mod download`.
+- **No dashboard at `localhost:8080`**: Start the app with `-j`, then open `/forza`.
+- **RPM is plausible but speed/temps are wrong**: Use `-z` for Horizon games; omit `-z` for Motorsport games.
+- **No telemetry arrives**: Confirm Data Out is enabled in Forza, the destination IP matches your computer, and the port is `9999`.
+
+## Further Reading
+
+- [Forza Motorsport Data Out documentation](https://support.forzamotorsport.net/hc/en-us/articles/21742934024211-Forza-Motorsport-Data-Out-Documentation)
+- [Forza Motorsport Data Out forum thread](https://forums.forza.net/t/data-out-feature-in-forza-motorsport/651333)
+- [Forza Horizon 5 Data Out structure discussion](https://forums.forza.net/t/data-out-telemetry-variables-and-structure/535984)
