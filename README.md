@@ -28,12 +28,6 @@ Install Go from [https://go.dev/dl/](https://go.dev/dl/) or with your package ma
 brew install go
 ```
 
-Check that Go is available:
-
-```sh
-go version
-```
-
 Any recent Go version should work.
 
 ## Build
@@ -88,7 +82,7 @@ Forza Motorsport:
 ./fdt -j -c log.csv
 ```
 
-Dashboard-only, quiet terminal mode:
+Forza Horizon, web dashboard-only / quiet terminal mode:
 
 ```sh
 ./fdt -z -j -q
@@ -117,7 +111,7 @@ The older standalone example dashboard remains in [dash/index.html](dash/index.h
 - **`go: command not found`**: Install Go and make sure it is on your `PATH`.
 - **Module download errors**: Run `go mod download`.
 - **No dashboard at `localhost:8080`**: Start the app with `-j`, then open `/forza`.
-- **RPM is plausible but speed/temps are wrong**: Use `-z` for Horizon games; omit `-z` for Motorsport games.
+- **Values look off**: Make sure to use `-z` for Horizon games; omit `-z` for Motorsport games.
 - **No telemetry arrives**: Confirm Data Out is enabled in Forza, the destination IP matches your computer, and the port is `9999`.
 
 ## Further Reading
