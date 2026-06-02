@@ -46,6 +46,26 @@ go build -o fdt.exe
 
 This creates an executable named `fdt` or `fdt.exe`.
 
+## Docker
+
+Build the container image:
+
+```sh
+docker build -t forza-data-tools .
+```
+
+Run it with the UDP telemetry port published, plus the dashboard port if you want the web UI:
+
+```sh
+docker run --rm -p 9999:9999/udp -p 8080:8080 forza-data-tools -j -q
+```
+
+If you want CSV logging, mount a directory and write the file there:
+
+```sh
+docker run --rm -p 9999:9999/udp -p 8080:8080 -v "$PWD:/data" forza-data-tools -j -q -c /data/log.csv
+```
+
 ## Game Setup
 
 1. In your Forza HUD/gameplay options, enable **Data Out**.
