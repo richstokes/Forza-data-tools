@@ -63,8 +63,10 @@ docker run --rm -p 9999:9999/udp -p 8080:8080 forza-data-tools -j -q
 If you want CSV logging, mount a directory and write the file there:
 
 ```sh
-docker run --rm -p 9999:9999/udp -p 8080:8080 -v "$PWD:/data" forza-data-tools -j -q -c /data/log.csv
+docker run --rm --user "$(id -u):$(id -g)" -p 9999:9999/udp -p 8080:8080 -v "$PWD:/data" forza-data-tools -j -q -c /data/log.csv
 ```
+
+The `--user` flag lets the nonroot container write the CSV file into your bind-mounted directory.
 
 ## Game Setup
 
